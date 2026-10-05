@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мосты: Средневековье</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-wrapper">
+        <header class="game-header">
+            <h1>🏰 Мосты <span class="accent">Premium</span></h1>
+            <p class="subtitle">Соедини острова древними тропами</p>
+        </header>
+
+        <div class="game-container">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <div class="controls-hint">
+            <span>🖱️ ЛКМ: построить/улучшить мост</span>
+            <span>🖱️ ПКМ: разрушить мост</span>
+        </div>
+    </div>
+
+    <script src="logic.js"></script> <!-- Без изменений -->
+    <script src="renderer.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const logic = new BridgesGameLogic(7);
+            logic.generateValidLevel();
+            const renderer = new BridgesGameRenderer('gameCanvas', logic);
+        });
+    </script>
+</body>
+</html>
