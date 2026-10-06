@@ -3,6 +3,7 @@ class BridgesGameRenderer {
     this.canvas = document.getElementById(canvasId);
     this.ctx = this.canvas.getContext('2d');
     this.logic = logic;
+    this.statusElement = document.getElementById('gameStatus');
 
     this.gridSize = 7;
     this.cellSize = 85;
@@ -83,6 +84,18 @@ class BridgesGameRenderer {
     return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
   }
 
+  generateNewLevel() {
+    const success = this.logic.generateValidLevel();
+    if (this.statusElement) {
+      this.statusElement.textContent = success
+        ? ''
+        : (this.logic.islands.size > 0
+          ? 'Не удалось создать новую карту. Предыдущая карта сохранена.'
+          : 'Не удалось создать уровень. Попробуйте обновить страницу.');
+    }
+    return success;
+  }
+
   getIslandAtPos(x, y) { return this.logic.getIslandAtPos(x, y, this.cellSize, this.offset); }
 
   getBtnClicked(x, y) {
@@ -111,14 +124,15 @@ class BridgesGameRenderer {
       const btnW = 180, btnH = 45;
       const btnX1 = this.canvasW / 2 - btnW / 2, btnY1 = this.canvasH / 2 + 50;
       if (pos.x >= btnX1 && pos.x <= btnX1 + btnW && pos.y >= btnY1 && pos.y <= btnY1 + btnH) {
-        this.logic.generateValidLevel();
-        this.isVictoryShown = false;
-        this.victoryAlpha = 0;
+        if (this.generateNewLevel()) {
+          this.isVictoryShown = false;
+          this.victoryAlpha = 0;
+        }
       }
       return;
     }
     const btn = this.getBtnClicked(pos.x, pos.y);
-    if (btn === 1) { this.logic.generateValidLevel(); return; }
+    if (btn === 1) { this.generateNewLevel(); return; }
     if (btn === 2) { this.logic.reset(); return; }
 
     const island = this.getIslandAtPos(pos.x, pos.y);
@@ -138,8 +152,25 @@ class BridgesGameRenderer {
 
   onContextMenu(pos) {
     if (this.isVictoryShown) return;
-    const island = this.getIslandAtPos(pos.x, pos.y);
-    if (island) this.logic.removeBridge(island);
+
+    const targetIsland = this.getIslandAtPos(pos.x, pos.y);
+
+    if (!targetIsland) return;
+
+    // Если пользователь не выбрал исходный остров,
+    // удалять нечего.
+    if (!this.selectedIsland) return;
+
+    if (
+      JSON.stringify(targetIsland) ===
+      JSON.stringify(this.selectedIsland)
+    ) {
+      return;
+    }
+
+    this.logic.removeBridge(this.selectedIsland, targetIsland);
+
+    this.selectedIsland = null;
   }
 
   flashWarning() {

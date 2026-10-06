@@ -20,6 +20,8 @@
             <canvas id="gameCanvas"></canvas>
         </div>
 
+        <p id="gameStatus" class="game-status" role="status" aria-live="polite"></p>
+
         <div class="controls-hint">
             <span>🖱️ ЛКМ: построить/улучшить мост</span>
             <span>🖱️ ПКМ: разрушить мост</span>
@@ -31,7 +33,11 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const logic = new BridgesGameLogic(7);
-            logic.generateValidLevel();
+            const generated = logic.generateValidLevel();
+            if (!generated) {
+                document.getElementById('gameStatus').textContent =
+                    'Не удалось создать уровень. Попробуйте обновить страницу.';
+            }
             const renderer = new BridgesGameRenderer('gameCanvas', logic);
         });
     </script>

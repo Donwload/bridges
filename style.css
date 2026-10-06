@@ -89,3 +89,17 @@ canvas {
     font-size: 0.9rem;
     border: 2px solid var(--wood-light);
 }
+
+.game-status {
+    color: #B71C1C;
+    font-weight: 700;
+    text-align: center;
+    max-width: 630px;
+}
+
+.game-status:not(:empty) {
+    padding: 8px 14px;
+    border: 2px solid rgba(183, 28, 28, 0.35);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.9);
+}
