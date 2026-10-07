@@ -271,24 +271,6 @@ class BridgesGameLogic {
         */
         let possible = true;
 
-        for (let k = index + 1; k < edges.length; k++) {
-          const future = edges[k];
-
-          if (
-            future.k1 === edge.k1 ||
-            future.k2 === edge.k1
-          ) {
-            // потенциальный мост для edge.k1 существует
-          }
-
-          if (
-            future.k1 === edge.k2 ||
-            future.k2 === edge.k2
-          ) {
-            // потенциальный мост для edge.k2 существует
-          }
-        }
-
         // Базовая проверка достаточности оставшихся рёбер.
         const remainingCapacity = new Map();
 
@@ -952,6 +934,38 @@ class BridgesGameLogic {
   }
 
   areIslandsNeighbors(i1, i2) {
+    if (
+      !Array.isArray(i1) ||
+      !Array.isArray(i2) ||
+      i1.length < 2 ||
+      i2.length < 2
+    ) {
+      return false;
+    }
+
+    if (
+      !Number.isInteger(i1[0]) ||
+      !Number.isInteger(i1[1]) ||
+      !Number.isInteger(i2[0]) ||
+      !Number.isInteger(i2[1])
+    ) {
+      return false;
+    }
+
+    const key1 = this.getKey(i1[0], i1[1]);
+    const key2 = this.getKey(i2[0], i2[1]);
+
+    // Сам с собой остров соседним мостом не считается.
+    if (key1 === key2) return false;
+
+    // Оба конца должны реально существовать.
+    if (
+      !this.islands.has(key1) ||
+      !this.islands.has(key2)
+    ) {
+      return false;
+    }
+        
     if (i1[0] !== i2[0] && i1[1] !== i2[1]) return false;
     if (i1[0] === i2[0]) {
       const minC = Math.min(i1[1], i2[1]), maxC = Math.max(i1[1], i2[1]);
@@ -1232,6 +1246,10 @@ class BridgesGameLogic {
         count < 1 ||
         count > 2
       ) {
+        return false;
+      }
+      // Пересекающиеся мосты не могут быть частью решения.
+      if (this.hasIntersection(i1, i2, this.bridges)) {
         return false;
       }
     }

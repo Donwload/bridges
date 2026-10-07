@@ -12,19 +12,26 @@
 <body>
     <div class="app-wrapper">
         <header class="game-header">
-            <h1>🏰 Мосты <span class="accent">Premium</span></h1>
+            <h1>🏰 Мосты</h1>
             <p class="subtitle">Соедини острова древними тропами</p>
         </header>
 
         <div class="game-container">
-            <canvas id="gameCanvas"></canvas>
+            <canvas
+                id="gameCanvas"
+                tabindex="0"
+                role="application"
+                aria-label="Игра Мосты. Соедините острова мостами так, чтобы число мостов вокруг каждого острова соответствовало указанному числу."
+                aria-describedby="gameHelp gameStatus"
+            ></canvas>
         </div>
 
         <p id="gameStatus" class="game-status" role="status" aria-live="polite"></p>
 
-        <div class="controls-hint">
-            <span>🖱️ ЛКМ: построить/улучшить мост</span>
-            <span>🖱️ ПКМ: разрушить мост</span>
+        <div class="game-help" id="gameHelp">
+            <span>🖱️ ЛКМ / касание + перетягивание — соединить острова</span>
+            <span>🖱️ ПКМ — удалить мост</span>
+            <span>📱 На телефоне — коснитесь моста, чтобы удалить</span>
         </div>
     </div>
 

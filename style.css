@@ -1,105 +1,435 @@
 :root {
-    --wood-dark: #5D4037;
+    --wood-dark: #3E2723;
+    --wood-mid: #5D4037;
     --wood-light: #8D6E63;
-    --grass-green: #4CAF50;
-    --water-blue: #4FC3F7;
+
+    --water-light: #81D4FA;
+    --water: #29B6F6;
     --water-deep: #0288D1;
+
+    --paper: #FFF8E1;
+    --paper-soft: #FFFDF5;
+
     --text-dark: #3E2723;
-    --text-light: #FFF8E1;
+    --text-muted: #795548;
+
+    --gold: #FFB300;
+    --gold-light: #FFD54F;
+    --orange: #F57C00;
+
+    --shadow-heavy: rgba(62, 39, 35, 0.35);
+    --shadow-soft: rgba(62, 39, 35, 0.18);
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    min-height: 100%;
+}
 
 body {
-    background: linear-gradient(180deg, #81D4FA 0%, #4FC3F7 50%, #29B6F6 100%);
+    min-height: 100vh;
+    padding: 28px 20px;
+
     font-family: 'Nunito', sans-serif;
+    color: var(--text-dark);
+
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
-    padding: 20px;
-    overflow: hidden; /* Чтобы анимация воды не вызывала скролл */
+
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    background:
+        radial-gradient(
+            circle at 20% 15%,
+            rgba(255, 255, 255, 0.35) 0 3px,
+            transparent 4px
+        ),
+        radial-gradient(
+            circle at 80% 70%,
+            rgba(255, 255, 255, 0.2) 0 2px,
+            transparent 3px
+        ),
+        linear-gradient(
+            145deg,
+            #81D4FA 0%,
+            #4FC3F7 45%,
+            #29B6F6 100%
+        );
 }
 
+/* =========================================================
+   ОСНОВНОЙ КОНТЕЙНЕР
+   ========================================================= */
+
 .app-wrapper {
+    width: min(100%, 720px);
+
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 20px;
+
+    gap: 16px;
+
     position: relative;
     z-index: 10;
 }
 
+/* =========================================================
+   ЗАГОЛОВОК
+   ========================================================= */
+
 .game-header {
+    width: fit-content;
+    max-width: 100%;
+
+    padding: 14px 34px 16px;
+
     text-align: center;
-    background: rgba(255, 255, 255, 0.6);
-    padding: 15px 30px;
-    border-radius: 20px;
-    backdrop-filter: blur(5px);
+
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.94),
+            rgba(255, 248, 225, 0.92)
+        );
+
     border: 3px solid var(--wood-light);
-    box-shadow: 0 8px 0 var(--wood-dark);
+    border-radius: 22px;
+
+    box-shadow:
+        0 6px 0 var(--wood-dark),
+        0 12px 24px var(--shadow-heavy);
+
+    backdrop-filter: blur(8px);
+
+    position: relative;
+}
+
+/* Маленький декоративный штрих сверху */
+
+.game-header::before,
+.game-header::after {
+    content: "✦";
+
+    position: absolute;
+    top: 50%;
+
+    transform: translateY(-50%);
+
+    color: var(--gold);
+    font-size: 20px;
+
+    text-shadow: 0 2px 0 rgba(62, 39, 35, 0.15);
+}
+
+.game-header::before {
+    left: 12px;
+}
+
+.game-header::after {
+    right: 12px;
 }
 
 .game-header h1 {
     font-family: 'Fredoka', sans-serif;
-    font-size: 2.2rem;
-    color: var(--text-dark);
-    margin-bottom: 5px;
-}
+    font-size: clamp(2rem, 5vw, 2.7rem);
+    font-weight: 700;
+    line-height: 1;
 
-.game-header .accent {
-    color: #E65100;
+    color: var(--text-dark);
+
+    margin-bottom: 7px;
+
+    text-shadow:
+        0 2px 0 #FFFFFF,
+        0 4px 0 rgba(62, 39, 35, 0.12);
 }
 
 .subtitle {
-    color: var(--text-dark);
-    font-size: 1rem;
+    color: var(--text-muted);
+
+    font-size: 0.98rem;
     font-weight: 700;
+
+    letter-spacing: 0.2px;
 }
 
+/* =========================================================
+   ИГРОВОЕ ПОЛЕ
+   ========================================================= */
+
 .game-container {
-    padding: 12px;
-    background: repeating-linear-gradient(
-        45deg,
-        var(--wood-dark),
-        var(--wood-dark) 10px,
-        var(--wood-light) 10px,
-        var(--wood-light) 20px
-    );
-    border-radius: 24px;
-    box-shadow: 0 15px 0 #3E2723, 0 20px 30px rgba(0,0,0,0.4);
-    border: 4px solid #3E2723;
+    width: min(100%, 662px);
+
+    padding: 11px;
+
+    border: 4px solid var(--wood-dark);
+    border-radius: 26px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #8D6E63 0%,
+            #5D4037 45%,
+            #4E342E 100%
+        );
+
+    box-shadow:
+        0 7px 0 #2D1B18,
+        0 15px 30px rgba(0, 0, 0, 0.32);
+
+    position: relative;
+}
+
+/* Декоративная внутренняя рамка */
+
+.game-container::before {
+    content: "";
+
+    position: absolute;
+    inset: 5px;
+
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 20px;
+
+    pointer-events: none;
 }
 
 canvas {
     display: block;
-    background-color: transparent; /* Вода будет рисоваться на canvas */
-    border-radius: 16px;
+
+    width: 100%;
+    max-width: 630px;
+    height: auto;
+
+    margin: 0 auto;
+
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.04),
+            rgba(0, 0, 0, 0.04)
+        );
+
+    border-radius: 17px;
+
     cursor: crosshair;
+
+    touch-action: none;
+
+    position: relative;
+    z-index: 1;
 }
 
-.controls-hint {
-    display: flex;
-    gap: 20px;
-    background: rgba(255, 255, 255, 0.8);
-    padding: 10px 20px;
-    border-radius: 50px;
-    color: var(--text-dark);
-    font-weight: 700;
-    font-size: 0.9rem;
-    border: 2px solid var(--wood-light);
+/* Клавиатурный фокус */
+
+canvas:focus-visible {
+    outline: 4px solid var(--gold-light);
+    outline-offset: 5px;
+
+    box-shadow:
+        0 0 0 7px rgba(255, 179, 0, 0.2);
 }
+
+/* =========================================================
+   СТАТУС
+   ========================================================= */
 
 .game-status {
-    color: #B71C1C;
-    font-weight: 700;
+    min-height: 0;
+
+    color: #8B1E1E;
+
+    font-size: 0.9rem;
+    font-weight: 800;
+
     text-align: center;
+
     max-width: 630px;
 }
 
 .game-status:not(:empty) {
-    padding: 8px 14px;
-    border: 2px solid rgba(183, 28, 28, 0.35);
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.9);
+    padding: 9px 18px;
+
+    background: rgba(255, 248, 225, 0.96);
+
+    border: 2px solid rgba(183, 28, 28, 0.32);
+    border-radius: 14px;
+
+    box-shadow:
+        0 4px 10px var(--shadow-soft);
+}
+
+/* =========================================================
+   ПОДСКАЗКИ
+   ========================================================= */
+
+.game-help {
+    width: fit-content;
+    max-width: min(94vw, 700px);
+
+    margin: 2px auto 0;
+    padding: 8px 15px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 8px 20px;
+    flex-wrap: wrap;
+
+    background: rgba(255, 248, 225, 0.94);
+
+    border: 2px solid rgba(141, 110, 99, 0.8);
+    border-radius: 15px;
+
+    color: var(--text-dark);
+
+    font-size: 12px;
+    line-height: 1.3;
+
+    text-align: center;
+
+    box-shadow:
+        0 5px 14px var(--shadow-soft);
+
+    backdrop-filter: blur(5px);
+}
+
+.game-help span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    white-space: nowrap;
+}
+
+/* =========================================================
+   АДАПТИВ
+   ========================================================= */
+
+@media (max-width: 700px) {
+    body {
+        align-items: flex-start;
+        padding: 14px 10px 20px;
+    }
+
+    .app-wrapper {
+        width: 100%;
+        gap: 12px;
+    }
+
+    .game-header {
+        width: 100%;
+        padding: 13px 20px 15px;
+
+        border-radius: 18px;
+    }
+
+    .game-header::before,
+    .game-header::after {
+        display: none;
+    }
+
+    .game-header h1 {
+        font-size: 1.9rem;
+    }
+
+    .subtitle {
+        font-size: 0.88rem;
+    }
+
+    .game-container {
+        width: 100%;
+
+        padding: 7px;
+
+        border-width: 3px;
+        border-radius: 20px;
+
+        box-shadow:
+            0 5px 0 #2D1B18,
+            0 10px 20px rgba(0, 0, 0, 0.28);
+    }
+
+    canvas {
+        border-radius: 14px;
+    }
+
+    .game-help {
+        width: calc(100% - 20px);
+        max-width: 390px;
+
+        margin-top: 2px;
+        padding: 8px 10px;
+
+        flex-direction: column;
+        gap: 4px;
+
+        border-radius: 14px;
+
+        font-size: 11px;
+        line-height: 1.25;
+    }
+
+    .game-help span {
+        white-space: normal;
+    }
+
+    .game-status {
+        width: 100%;
+    }
+}
+
+/* =========================================================
+   ОЧЕНЬ УЗКИЕ ЭКРАНЫ
+   ========================================================= */
+
+@media (max-width: 380px) {
+    body {
+        padding: 10px 7px 16px;
+    }
+
+    .game-header {
+        padding: 11px 14px 13px;
+    }
+
+    .game-header h1 {
+        font-size: 1.7rem;
+    }
+
+    .subtitle {
+        font-size: 0.82rem;
+    }
+
+    .game-help {
+        width: calc(100% - 12px);
+
+        padding: 7px 8px;
+
+        font-size: 10px;
+        gap: 3px;
+    }
+}
+
+/* =========================================================
+   ВЫСОКИЕ ЭКРАНЫ
+   ========================================================= */
+
+@media (min-height: 900px) and (min-width: 701px) {
+    body {
+        padding-top: 40px;
+        padding-bottom: 40px;
+    }
+
+    .app-wrapper {
+        gap: 18px;
+    }
 }

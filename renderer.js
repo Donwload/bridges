@@ -53,28 +53,140 @@ class BridgesGameRenderer {
   }
 
   startAnimationLoop() {
-    const animate = () => {
-      this.time += 0.02;
-      if (this.isVictoryShown && this.victoryAlpha < 1) {
-        this.victoryAlpha = Math.min(1, this.victoryAlpha + 0.04);
+    let lastTimestamp = null;
+    let animationFrameId = null;
+
+    const animate = (timestamp) => {
+      if (lastTimestamp === null) {
+        lastTimestamp = timestamp;
       }
+
+      const deltaTime = Math.min(
+        (timestamp - lastTimestamp) / 1000,
+        0.05
+      );
+
+      lastTimestamp = timestamp;
+
+      this.time += deltaTime * 1.2;
+
+      if (this.isVictoryShown && this.victoryAlpha < 1) {
+        this.victoryAlpha = Math.min(
+          1,
+          this.victoryAlpha + deltaTime * 2.4
+        );
+      }
+
       this.draw();
-      requestAnimationFrame(animate);
+
+      animationFrameId = requestAnimationFrame(animate);
     };
-    requestAnimationFrame(animate);
+
+    const startAnimation = () => {
+      if (animationFrameId !== null || document.hidden) {
+        return;
+      }
+
+      lastTimestamp = null;
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    const stopAnimation = () => {
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+
+      lastTimestamp = null;
+    };
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        stopAnimation();
+      } else {
+        startAnimation();
+      }
+    });
+
+    startAnimation();
   }
 
   setupEvents() {
-    this.canvas.addEventListener('mousemove', (e) => {
-      this.lastMousePos = this.getMousePos(e);
-      this.onMouseMove(this.lastMousePos);
-    });
-    this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(this.getMousePos(e)));
-    this.canvas.addEventListener('mouseup', (e) => this.onMouseUp(this.getMousePos(e)));
-    this.canvas.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      this.onContextMenu(this.getMousePos(e));
-    });
+      this.canvas.addEventListener('pointermove', (e) => {
+          const pos = this.getMousePos(e);
+
+          this.lastMousePos = pos;
+          this.onMouseMove(pos);
+
+          if (this.selectedIsland && e.pointerType !== 'mouse') {
+              this.canvas.setPointerCapture?.(e.pointerId);
+          }
+      });
+
+      this.canvas.addEventListener('pointerdown', (e) => {
+          const pos = this.getMousePos(e);
+
+          // ПКМ: сразу удаляем мост под курсором.
+          if (e.button === 2) {
+              e.preventDefault();
+              this.onContextMenu(pos);
+              return;
+          }
+
+          // Только основная кнопка мыши / touch.
+          if (e.button !== 0) return;
+
+          // На телефоне касание существующего моста удаляет его.
+          if (e.pointerType === 'touch') {
+              const bridge = this.findBridgeAtPos(pos.x, pos.y);
+
+              if (bridge) {
+                  const removed = this.logic.removeBridge(
+                      bridge[0],
+                      bridge[1]
+                  );
+
+                  this.selectedIsland = null;
+                  this.lastMousePos = pos;
+
+                  if (removed && this.logic.checkVictory()) {
+                      this.isVictoryShown = true;
+                  }
+
+                  return;
+              }
+          }
+
+          this.onMouseDown(pos);
+
+          if (this.selectedIsland) {
+              this.canvas.setPointerCapture?.(e.pointerId);
+          }
+      });
+
+      this.canvas.addEventListener('pointerup', (e) => {
+          const pos = this.getMousePos(e);
+
+          if (e.button !== 0) return;
+
+          this.onMouseUp(pos);
+
+          if (this.canvas.hasPointerCapture?.(e.pointerId)) {
+              this.canvas.releasePointerCapture(e.pointerId);
+          }
+      });
+
+      this.canvas.addEventListener('pointercancel', (e) => {
+          this.selectedIsland = null;
+
+          if (this.canvas.hasPointerCapture?.(e.pointerId)) {
+              this.canvas.releasePointerCapture(e.pointerId);
+          }
+      });
+
+      this.canvas.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+      });
   }
 
   getMousePos(e) {
@@ -98,12 +210,80 @@ class BridgesGameRenderer {
 
   getIslandAtPos(x, y) { return this.logic.getIslandAtPos(x, y, this.cellSize, this.offset); }
 
+  findBridgeAtPos(x, y) {
+      const HIT_RADIUS = 18;
+      const END_MARGIN = 30;
+
+      for (const edgeKey of this.logic.bridges.keys()) {
+          const [k1, k2] = edgeKey.split('-');
+
+          const [r1, c1] = k1.split(',').map(Number);
+          const [r2, c2] = k2.split(',').map(Number);
+
+          const x1 = c1 * this.cellSize + this.offset;
+          const y1 = r1 * this.cellSize + this.offset;
+
+          const x2 = c2 * this.cellSize + this.offset;
+          const y2 = r2 * this.cellSize + this.offset;
+
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+
+          const lengthSquared = dx * dx + dy * dy;
+
+          if (lengthSquared === 0) continue;
+
+          let t =
+              ((x - x1) * dx + (y - y1) * dy) /
+              lengthSquared;
+
+          // Не позволяем удалить мост кликом по самому острову.
+          const length = Math.sqrt(lengthSquared);
+          const margin = END_MARGIN / length;
+
+          if (t < margin || t > 1 - margin) {
+              continue;
+          }
+
+          t = Math.max(0, Math.min(1, t));
+
+          const closestX = x1 + t * dx;
+          const closestY = y1 + t * dy;
+
+          const distance = Math.hypot(
+              x - closestX,
+              y - closestY
+          );
+
+          if (distance <= HIT_RADIUS) {
+              return [
+                  [r1, c1],
+                  [r2, c2]
+              ];
+          }
+      }
+
+      return null;
+  }
+  
   getBtnClicked(x, y) {
     const [x1, y1, x2, y2] = this.btn1Coords;
     if (x >= x1 && x <= x2 && y >= y1 && y <= y2) return 1;
     const [x3, y3, x4, y4] = this.btn2Coords;
     if (x >= x3 && x <= x4 && y >= y3 && y <= y4) return 2;
     return 0;
+  }
+
+  getVictoryButtonRect() {
+    const width = 200;
+    const height = 45;
+
+    return {
+      x: this.canvasW / 2 - width / 2,
+      y: this.canvasH / 2 + 50,
+      width,
+      height
+    };
   }
 
   onMouseMove(pos) {
@@ -121,19 +301,38 @@ class BridgesGameRenderer {
 
   onMouseDown(pos) {
     if (this.isVictoryShown) {
-      const btnW = 180, btnH = 45;
-      const btnX1 = this.canvasW / 2 - btnW / 2, btnY1 = this.canvasH / 2 + 50;
-      if (pos.x >= btnX1 && pos.x <= btnX1 + btnW && pos.y >= btnY1 && pos.y <= btnY1 + btnH) {
+      const button = this.getVictoryButtonRect();
+
+      if (
+        pos.x >= button.x &&
+        pos.x <= button.x + button.width &&
+        pos.y >= button.y &&
+        pos.y <= button.y + button.height
+      ) {
         if (this.generateNewLevel()) {
           this.isVictoryShown = false;
           this.victoryAlpha = 0;
         }
       }
+
       return;
     }
+
     const btn = this.getBtnClicked(pos.x, pos.y);
-    if (btn === 1) { this.generateNewLevel(); return; }
-    if (btn === 2) { this.logic.reset(); return; }
+    if (btn === 1) {
+        if (this.generateNewLevel()) {
+            this.selectedIsland = null;
+            this.hoveredIsland = null;
+        }
+        return;
+    }
+
+    if (btn === 2) {
+        this.logic.reset();
+        this.selectedIsland = null;
+        this.hoveredIsland = null;
+        return;
+    }
 
     const island = this.getIslandAtPos(pos.x, pos.y);
     if (island) this.selectedIsland = island;
@@ -151,26 +350,26 @@ class BridgesGameRenderer {
   }
 
   onContextMenu(pos) {
-    if (this.isVictoryShown) return;
+      if (this.isVictoryShown) return;
 
-    const targetIsland = this.getIslandAtPos(pos.x, pos.y);
+      const bridge = this.findBridgeAtPos(pos.x, pos.y);
 
-    if (!targetIsland) return;
+      if (!bridge) {
+          return;
+      }
 
-    // Если пользователь не выбрал исходный остров,
-    // удалять нечего.
-    if (!this.selectedIsland) return;
+      const removed = this.logic.removeBridge(
+          bridge[0],
+          bridge[1]
+      );
 
-    if (
-      JSON.stringify(targetIsland) ===
-      JSON.stringify(this.selectedIsland)
-    ) {
-      return;
-    }
+      if (removed) {
+          this.selectedIsland = null;
 
-    this.logic.removeBridge(this.selectedIsland, targetIsland);
-
-    this.selectedIsland = null;
+          if (this.logic.checkVictory()) {
+              this.isVictoryShown = true;
+          }
+      }
   }
 
   flashWarning() {
@@ -509,8 +708,18 @@ class BridgesGameRenderer {
       this.ctx.font = "16px Arial, sans-serif";
       this.ctx.fillText("Королевство снова связано!", w / 2, h / 2 + 10);
 
-      const btnW = 200, btnH = 45, bx1 = w / 2 - btnW / 2, by1 = h / 2 + 50;
-      this.drawWoodenButton([bx1, by1, bx1 + btnW, by1 + btnH], "НОВОЕ ПРИКЛЮЧЕНИЕ", true);
+      const button = this.getVictoryButtonRect();
+
+      this.drawWoodenButton(
+        [
+          button.x,
+          button.y,
+          button.x + button.width,
+          button.y + button.height
+        ],
+        "НОВОЕ ПРИКЛЮЧЕНИЕ",
+        true
+      );
 
       this.ctx.restore();
     }

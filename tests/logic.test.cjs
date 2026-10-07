@@ -304,3 +304,25 @@ test('удаление отсутствующего моста ничего не
 
   assert.equal(game.bridges.size, 0);
 });
+
+test('areIslandsNeighbors не считает остров соседом самого себя', () => {
+  const game = new BridgesGameLogic(7);
+
+  game.islands.set('2,2', 1);
+
+  assert.equal(
+    game.areIslandsNeighbors([2, 2], [2, 2]),
+    false
+  );
+});
+
+test('areIslandsNeighbors не считает отсутствующий остров соседом', () => {
+  const game = new BridgesGameLogic(7);
+
+  game.islands.set('2,2', 1);
+
+  assert.equal(
+    game.areIslandsNeighbors([2, 2], [2, 5]),
+    false
+  );
+});
