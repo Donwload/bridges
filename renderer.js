@@ -30,23 +30,32 @@ class BridgesGameRenderer {
       progress_over: "#FF5252"
     };
 
-    this.canvasW = this.gridSize * this.cellSize + 35;
-    this.canvasH = this.gridSize * this.cellSize + 110;
-    this.canvas.width = this.canvasW;
-    this.canvas.height = this.canvasH;
-
     this.selectedIsland = null;
     this.hoveredIsland = null;
     this.btn1Hovered = false;
     this.btn2Hovered = false;
     this.isVictoryShown = false;
 
+    this.level = 1;
+
+    this.levels = [
+        { minIslands: 6,  maxIslands: 7,  gridSize: 7, name: "🌱 Начало" },
+        { minIslands: 7,  maxIslands: 8,  gridSize: 7, name: "🌿 Тропа" },
+        { minIslands: 8,  maxIslands: 9,  gridSize: 7, name: "🏡 Деревня" },
+        { minIslands: 9,  maxIslands: 10, gridSize: 7, name: "🏰 Замок" },
+        { minIslands: 10, maxIslands: 11, gridSize: 8, name: "⚔️ Испытание" },
+        { minIslands: 11, maxIslands: 12, gridSize: 8, name: "🛡️ Крепость" },
+        { minIslands: 12, maxIslands: 13, gridSize: 8, name: "👑 Королевство" },
+        { minIslands: 13, maxIslands: 14, gridSize: 9, name: "🏯 Империя" },
+        { minIslands: 14, maxIslands: 15, gridSize: 9, name: "🔥 Великий путь" },
+        { minIslands: 15, maxIslands: 16, gridSize: 9, name: "🐉 Легенда" }
+    ];
+    
     this.time = 0;
     this.victoryAlpha = 0;
     this.lastMousePos = { x: 0, y: 0 };
 
-    this.btn1Coords = [60, this.gridSize * this.cellSize + 40, 290, this.gridSize * this.cellSize + 85];
-    this.btn2Coords = [330, this.gridSize * this.cellSize + 40, 560, this.gridSize * this.cellSize + 85];
+    this.updateCanvasGeometry();
 
     this.setupEvents();
     this.startAnimationLoop();
@@ -196,17 +205,90 @@ class BridgesGameRenderer {
     return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
   }
 
-  generateNewLevel() {
-    const success = this.logic.generateValidLevel();
-    if (this.statusElement) {
-      this.statusElement.textContent = success
-        ? ''
-        : (this.logic.islands.size > 0
-          ? 'Не удалось создать новую карту. Предыдущая карта сохранена.'
-          : 'Не удалось создать уровень. Попробуйте обновить страницу.');
-    }
-    return success;
+  updateCanvasGeometry() {
+      const boardPadding = 35;
+
+      // Размер игровой сетки.
+      const boardSize = this.gridSize * this.cellSize;
+
+      // Canvas оставляет свободное место вокруг всей сетки.
+      this.canvasW = boardSize + boardPadding * 2;
+      this.canvasH = boardSize + 110;
+
+      this.canvas.width = this.canvasW;
+      this.canvas.height = this.canvasH;
+
+      /*
+        * offset — это координата ЦЕНТРА первой клетки.
+        *
+        * Поэтому к внешнему отступу добавляем половину клетки.
+        */
+      this.offset = boardPadding + this.cellSize / 2;
+
+      // Кнопки располагаем по центру canvas.
+      const buttonWidth = 230;
+      const buttonGap = 20;
+      const buttonHeight = 45;
+
+      const totalButtonsWidth = buttonWidth * 2 + buttonGap;
+      const buttonsStartX = (this.canvasW - totalButtonsWidth) / 2;
+      const buttonsY = boardSize + 40;
+
+      this.btn1Coords = [
+          buttonsStartX,
+          buttonsY,
+          buttonsStartX + buttonWidth,
+          buttonsY + buttonHeight
+      ];
+
+      this.btn2Coords = [
+          buttonsStartX + buttonWidth + buttonGap,
+          buttonsY,
+          buttonsStartX + buttonWidth * 2 + buttonGap,
+          buttonsY + buttonHeight
+      ];
   }
+
+  generateNewLevel(level = this.level) {
+    const profile = this.levels[level - 1];
+
+    if (!profile) {
+        return false;
+    }
+
+    const success = this.logic.generateValidLevel({
+        minIslands: profile.minIslands,
+        maxIslands: profile.maxIslands,
+        gridSize: profile.gridSize
+    });
+
+    if (success) {
+      this.gridSize = profile.gridSize;
+
+      this.updateCanvasGeometry();
+
+      this.selectedIsland = null;
+      this.hoveredIsland = null;
+      this.lastMousePos = { x: 0, y: 0 };
+
+
+      this.selectedIsland = null;
+      this.hoveredIsland = null;
+      this.lastMousePos = { x: 0, y: 0 };
+
+      if (this.statusElement) {
+          this.statusElement.textContent = `Уровень ${this.level}: ${profile.name}`;
+      }
+    } else if (this.statusElement) {
+        this.statusElement.textContent =
+            this.logic.islands.size > 0
+                ? "Не удалось создать новую карту. Предыдущая карта сохранена."
+                : "Не удалось создать уровень. Попробуйте обновить страницу.";
+    }
+
+    return success;
+}
+
 
   getIslandAtPos(x, y) { return this.logic.getIslandAtPos(x, y, this.cellSize, this.offset); }
 
@@ -301,22 +383,35 @@ class BridgesGameRenderer {
 
   onMouseDown(pos) {
     if (this.isVictoryShown) {
-      const button = this.getVictoryButtonRect();
+        const button = this.getVictoryButtonRect();
 
-      if (
-        pos.x >= button.x &&
-        pos.x <= button.x + button.width &&
-        pos.y >= button.y &&
-        pos.y <= button.y + button.height
-      ) {
-        if (this.generateNewLevel()) {
-          this.isVictoryShown = false;
-          this.victoryAlpha = 0;
+        if (
+            pos.x >= button.x &&
+            pos.x <= button.x + button.width &&
+            pos.y >= button.y &&
+            pos.y <= button.y + button.height
+        ) {
+            // Кампания завершена.
+            // Начинаем её заново с первого уровня.
+            if (this.level >= this.levels.length) {
+                this.level = 1;
+            } else {
+                nextLevel = this.level + 1;
+            }
+
+            if (this.generateNewLevel(nextLevel)) { 
+              this.level = nextLevel; 
+              
+              this.isVictoryShown = false; 
+              this.victoryAlpha = 0; 
+              this.selectedIsland = null; 
+              this.hoveredIsland = null; 
+            }
         }
-      }
 
-      return;
+        return;
     }
+
 
     const btn = this.getBtnClicked(pos.x, pos.y);
     if (btn === 1) {
@@ -1362,48 +1457,64 @@ class BridgesGameRenderer {
         this.ctx.fillText("ПОБЕДА!", w / 2, py + 89);
 
         /*
-         * 9. Подзаголовок.
+         * 9. Информация об уровне.
+         */
+        this.ctx.font = '700 17px "Nunito", sans-serif';
+        this.ctx.fillStyle = "#765E52";
+        this.ctx.fillText(`Уровень ${this.level} из ${this.levels.length} пройден!`, w / 2, py + 120);
+
+        /*
+         * 10. Сообщение.
          */
         this.ctx.font = '700 15px "Nunito", sans-serif';
         this.ctx.fillStyle = "#765E52";
-        this.ctx.fillText("Королевство снова связано!", w / 2, py + 121);
+
+        if (this.level >= this.levels.length) {
+            this.ctx.fillText("Вы прошли всю кампанию!", w / 2, py + 145);
+        } else {
+            this.ctx.fillText(`Следующий уровень: ${this.level + 1}`, w / 2, py + 145);
+        }
 
         /*
-         * 10. Декоративная разделительная линия.
+         * 11. Разделительная линия.
          */
         this.ctx.strokeStyle = "rgba(139, 98, 83, 0.28)";
         this.ctx.lineWidth = 1.5;
 
         this.ctx.beginPath();
-        this.ctx.moveTo(px + 55, py + 143);
-        this.ctx.lineTo(px + panelW - 55, py + 143);
+        this.ctx.moveTo(px + 55, py + 165);
+        this.ctx.lineTo(px + panelW - 55, py + 165);
         this.ctx.stroke();
 
         /*
-         * Маленькие декоративные точки.
+         * Декоративные точки.
          */
         this.ctx.fillStyle = "#C7954C";
 
         this.ctx.beginPath();
-        this.ctx.arc(px + 48, py + 143, 3, 0, Math.PI * 2);
+        this.ctx.arc(px + 48, py + 165, 3, 0, Math.PI * 2);
         this.ctx.fill();
 
         this.ctx.beginPath();
-        this.ctx.arc(px + panelW - 48, py + 143, 3, 0, Math.PI * 2);
+        this.ctx.arc(px + panelW - 48, py + 165, 3, 0, Math.PI * 2);
         this.ctx.fill();
 
         /*
-         * 11. Кнопка.
-         *
-         * Геометрия остаётся общей с hitbox.
+         * 12. Кнопка.
          */
         const button = this.getVictoryButtonRect();
 
         this.drawWoodenButton(
-            [button.x, button.y, button.x + button.width, button.y + button.height],
-            "НОВОЕ ПРИКЛЮЧЕНИЕ",
+            [
+                button.x,
+                button.y,
+                button.x + button.width,
+                button.y + button.height
+            ],
+            this.level >= this.levels.length ? "НАЧАТЬ ЗАНОВО" : "СЛЕДУЮЩИЙ УРОВЕНЬ",
             true
         );
+
 
         this.ctx.restore();
     }

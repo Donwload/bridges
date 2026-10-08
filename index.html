@@ -40,12 +40,14 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const logic = new BridgesGameLogic(7);
-            const generated = logic.generateValidLevel();
+            const renderer = new BridgesGameRenderer('gameCanvas', logic);
+
+            const generated = renderer.generateValidLevel(1);
+
             if (!generated) {
                 document.getElementById('gameStatus').textContent =
                     'Не удалось создать уровень. Попробуйте обновить страницу.';
             }
-            const renderer = new BridgesGameRenderer('gameCanvas', logic);
         });
     </script>
 </body>

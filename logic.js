@@ -387,7 +387,15 @@ class BridgesGameLogic {
     return visited.size === islandKeys.length;
   }
 
-  generateValidLevel() {
+  generateValidLevel(options = {}) {
+    const minIslands = options.minIslands ?? 8;
+    const maxIslands = options.maxIslands ?? 11;
+    const gridSize = options.gridSize ?? this.gridSize;
+
+    const previousGridSize = this.gridSize;
+
+    this.gridSize = gridSize;
+
     let attempts = 0;
 
     let rejectedByNoTree = 0;
@@ -400,7 +408,9 @@ class BridgesGameLogic {
 
       const attemptStart = performance.now();
 
-      const islandCount = Math.floor(Math.random() * 4) + 8;
+      const islandCount = 
+        minIslands + 
+        Math.floor(Math.random() * (maxIslands - minIslands + 1));
       const placedIslands = [];
 
       // Первый остров выбираем случайно,
@@ -536,13 +546,36 @@ class BridgesGameLogic {
         );
       }
 
-      // Не удалось разместить нужное количество островов.
-      // Начинаем новую попытку генерации.
-      if (
-        placedIslands.length < islandCount
-      ) {
-        continue;
+            // ============================================================
+      // Проверяем, что острова используют игровое поле равномерно.
+      // Не позволяем всей карте скучиваться только в одной части.
+      // ============================================================
+
+      let minRow = this.gridSize;
+      let maxRow = -1;
+      let minCol = this.gridSize;
+      let maxCol = -1;
+
+      for (const [r, c] of placedIslands) {
+          minRow = Math.min(minRow, r);
+          maxRow = Math.max(maxRow, r);
+          minCol = Math.min(minCol, c);
+          maxCol = Math.max(maxCol, c);
       }
+
+      // На поле 7x7 допускаем край в пределах 1 клетки.
+      // На 8x8 и 9x9 это также сохраняет хороший запас.
+      const edgeMargin = 1;
+
+      if (
+          minRow > edgeMargin ||
+          maxRow < this.gridSize - 1 - edgeMargin ||
+          minCol > edgeMargin ||
+          maxCol < this.gridSize - 1 - edgeMargin
+      ) {
+          continue;
+      }
+
 
       // ============================================================
       // Создаём связное дерево мостов.
