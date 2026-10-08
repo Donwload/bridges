@@ -1350,7 +1350,7 @@ class BridgesGameRenderer {
         }
 
         const panelW = 380;
-        const panelH = 230;
+        const panelH = 250;
 
         const px = w / 2 - panelW / 2;
         const py = h / 2 - panelH / 2;
@@ -1481,8 +1481,8 @@ class BridgesGameRenderer {
         this.ctx.lineWidth = 1.5;
 
         this.ctx.beginPath();
-        this.ctx.moveTo(px + 55, py + 165);
-        this.ctx.lineTo(px + panelW - 55, py + 165);
+        this.ctx.moveTo(px + 55, py + 160);
+        this.ctx.lineTo(px + panelW - 55, py + 160);
         this.ctx.stroke();
 
         /*
@@ -1491,11 +1491,11 @@ class BridgesGameRenderer {
         this.ctx.fillStyle = "#C7954C";
 
         this.ctx.beginPath();
-        this.ctx.arc(px + 48, py + 165, 3, 0, Math.PI * 2);
+        this.ctx.arc(px + 48, py + 160, 3, 0, Math.PI * 2);
         this.ctx.fill();
 
         this.ctx.beginPath();
-        this.ctx.arc(px + panelW - 48, py + 165, 3, 0, Math.PI * 2);
+        this.ctx.arc(px + panelW - 48, py + 160, 3, 0, Math.PI * 2);
         this.ctx.fill();
 
         /*
