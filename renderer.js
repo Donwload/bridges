@@ -30,6 +30,7 @@ class BridgesGameRenderer {
       progress_over: "#FF5252"
     };
 
+
     this.selectedIsland = null;
     this.hoveredIsland = null;
     this.btn1Hovered = false;
@@ -396,16 +397,14 @@ class BridgesGameRenderer {
             if (this.level >= this.levels.length) {
                 this.level = 1;
             } else {
-                nextLevel = this.level + 1;
+                this.level++;
             }
 
-            if (this.generateNewLevel(nextLevel)) { 
-              this.level = nextLevel; 
-              
-              this.isVictoryShown = false; 
-              this.victoryAlpha = 0; 
-              this.selectedIsland = null; 
-              this.hoveredIsland = null; 
+            if (this.generateNewLevel(this.level)) {
+                this.isVictoryShown = false;
+                this.victoryAlpha = 0;
+                this.selectedIsland = null;
+                this.hoveredIsland = null;
             }
         }
 
