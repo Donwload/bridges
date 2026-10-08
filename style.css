@@ -1,25 +1,40 @@
 :root {
-    --wood-dark: #3E2723;
-    --wood-mid: #5D4037;
-    --wood-light: #8D6E63;
+    --wood-900: #3a241d;
+    --wood-800: #4b3027;
+    --wood-700: #624238;
+    --wood-500: #8b6253;
 
-    --water-light: #81D4FA;
-    --water: #29B6F6;
-    --water-deep: #0288D1;
+    --cream-50: #fffdf7;
+    --cream-100: #fff8e8;
+    --cream-200: #f5e7c8;
 
-    --paper: #FFF8E1;
-    --paper-soft: #FFFDF5;
+    --water-300: #7dd3fc;
+    --water-400: #38bdf8;
+    --water-500: #0ea5e9;
+    --water-600: #0284c7;
 
-    --text-dark: #3E2723;
-    --text-muted: #795548;
+    --gold-300: #fcd34d;
+    --gold-400: #fbbf24;
+    --gold-500: #f59e0b;
 
-    --gold: #FFB300;
-    --gold-light: #FFD54F;
-    --orange: #F57C00;
+    --text-main: #3b2923;
+    --text-muted: #765e52;
 
-    --shadow-heavy: rgba(62, 39, 35, 0.35);
-    --shadow-soft: rgba(62, 39, 35, 0.18);
+    --shadow-soft:
+        0 10px 30px rgba(58, 36, 29, 0.16);
+
+    --shadow-card:
+        0 20px 45px rgba(58, 36, 29, 0.24);
+
+    --shadow-heavy:
+        0 12px 0 rgba(58, 36, 29, 0.9),
+        0 24px 45px rgba(0, 0, 0, 0.25);
 }
+
+
+/* =========================================================
+   RESET
+   ========================================================= */
 
 * {
     box-sizing: border-box;
@@ -33,39 +48,41 @@ html {
 
 body {
     min-height: 100vh;
-    padding: 28px 20px;
 
-    font-family: 'Nunito', sans-serif;
-    color: var(--text-dark);
-
-    display: flex;
-    justify-content: center;
-    align-items: center;
-
-    overflow-x: hidden;
-    overflow-y: auto;
+    font-family: "Nunito", sans-serif;
+    color: var(--text-main);
 
     background:
         radial-gradient(
             circle at 20% 15%,
-            rgba(255, 255, 255, 0.35) 0 3px,
-            transparent 4px
+            rgba(255, 255, 255, 0.35),
+            transparent 28%
         ),
         radial-gradient(
-            circle at 80% 70%,
-            rgba(255, 255, 255, 0.2) 0 2px,
-            transparent 3px
+            circle at 80% 80%,
+            rgba(255, 255, 255, 0.18),
+            transparent 30%
         ),
         linear-gradient(
-            145deg,
-            #81D4FA 0%,
-            #4FC3F7 45%,
-            #29B6F6 100%
+            160deg,
+            var(--water-300) 0%,
+            var(--water-400) 45%,
+            var(--water-500) 100%
         );
+
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+
+    padding: 28px 18px 40px;
+
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
+
 /* =========================================================
-   ОСНОВНОЙ КОНТЕЙНЕР
+   APP
    ========================================================= */
 
 .app-wrapper {
@@ -75,132 +92,131 @@ body {
     flex-direction: column;
     align-items: center;
 
-    gap: 16px;
+    gap: 18px;
 
     position: relative;
-    z-index: 10;
+    z-index: 1;
 }
 
+
 /* =========================================================
-   ЗАГОЛОВОК
+   HEADER
    ========================================================= */
 
 .game-header {
-    width: fit-content;
-    max-width: 100%;
+    width: 100%;
 
-    padding: 14px 34px 16px;
+    padding: 18px 28px 16px;
 
     text-align: center;
 
     background:
         linear-gradient(
             180deg,
-            rgba(255, 255, 255, 0.94),
-            rgba(255, 248, 225, 0.92)
+            rgba(255, 253, 247, 0.96),
+            rgba(255, 248, 232, 0.94)
         );
 
-    border: 3px solid var(--wood-light);
-    border-radius: 22px;
+    border: 2px solid rgba(98, 66, 56, 0.45);
+    border-radius: 24px;
 
-    box-shadow:
-        0 6px 0 var(--wood-dark),
-        0 12px 24px var(--shadow-heavy);
-
-    backdrop-filter: blur(8px);
+    box-shadow: var(--shadow-card);
 
     position: relative;
+    overflow: hidden;
 }
-
-/* Маленький декоративный штрих сверху */
 
 .game-header::before,
 .game-header::after {
     content: "✦";
 
     position: absolute;
-    top: 50%;
 
-    transform: translateY(-50%);
+    color: var(--gold-500);
 
-    color: var(--gold);
-    font-size: 20px;
-
-    text-shadow: 0 2px 0 rgba(62, 39, 35, 0.15);
+    font-size: 18px;
+    opacity: 0.7;
 }
 
 .game-header::before {
-    left: 12px;
+    left: 22px;
+    top: 16px;
 }
 
 .game-header::after {
-    right: 12px;
+    right: 22px;
+    bottom: 14px;
 }
 
 .game-header h1 {
-    font-family: 'Fredoka', sans-serif;
-    font-size: clamp(2rem, 5vw, 2.7rem);
-    font-weight: 700;
+    font-family: "Fredoka", sans-serif;
+
+    font-size: clamp(2rem, 6vw, 2.8rem);
     line-height: 1;
 
-    color: var(--text-dark);
+    font-weight: 700;
 
-    margin-bottom: 7px;
+    color: var(--wood-900);
+
+    letter-spacing: -0.02em;
 
     text-shadow:
-        0 2px 0 #FFFFFF,
-        0 4px 0 rgba(62, 39, 35, 0.12);
+        0 2px 0 rgba(255, 255, 255, 0.8);
 }
 
 .subtitle {
+    margin-top: 7px;
+
     color: var(--text-muted);
 
-    font-size: 0.98rem;
+    font-size: clamp(0.82rem, 2.5vw, 1rem);
     font-weight: 700;
 
-    letter-spacing: 0.2px;
+    letter-spacing: 0.01em;
 }
 
+
 /* =========================================================
-   ИГРОВОЕ ПОЛЕ
+   GAME FRAME
    ========================================================= */
 
 .game-container {
-    width: min(100%, 662px);
+    width: 100%;
 
     padding: 11px;
-
-    border: 4px solid var(--wood-dark);
-    border-radius: 26px;
 
     background:
         linear-gradient(
             135deg,
-            #8D6E63 0%,
-            #5D4037 45%,
-            #4E342E 100%
+            var(--wood-700),
+            var(--wood-800) 45%,
+            var(--wood-900)
         );
 
-    box-shadow:
-        0 7px 0 #2D1B18,
-        0 15px 30px rgba(0, 0, 0, 0.32);
+    border: 3px solid var(--wood-900);
+    border-radius: 26px;
+
+    box-shadow: var(--shadow-heavy);
 
     position: relative;
 }
-
-/* Декоративная внутренняя рамка */
 
 .game-container::before {
     content: "";
 
     position: absolute;
-    inset: 5px;
+    inset: 6px;
 
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.10);
     border-radius: 20px;
 
     pointer-events: none;
 }
+
+
+/* =========================================================
+   CANVAS
+   ========================================================= */
 
 canvas {
     display: block;
@@ -211,14 +227,9 @@ canvas {
 
     margin: 0 auto;
 
-    background:
-        linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.04),
-            rgba(0, 0, 0, 0.04)
-        );
-
     border-radius: 17px;
+
+    background: transparent;
 
     cursor: crosshair;
 
@@ -228,79 +239,73 @@ canvas {
     z-index: 1;
 }
 
-/* Клавиатурный фокус */
-
 canvas:focus-visible {
-    outline: 4px solid var(--gold-light);
+    outline: 4px solid var(--gold-300);
     outline-offset: 5px;
-
-    box-shadow:
-        0 0 0 7px rgba(255, 179, 0, 0.2);
 }
 
+
 /* =========================================================
-   СТАТУС
+   STATUS
    ========================================================= */
 
 .game-status {
-    min-height: 0;
+    width: 100%;
+    max-width: 630px;
 
-    color: #8B1E1E;
+    color: #991b1b;
 
     font-size: 0.9rem;
-    font-weight: 800;
+    font-weight: 700;
 
     text-align: center;
-
-    max-width: 630px;
 }
 
 .game-status:not(:empty) {
-    padding: 9px 18px;
+    padding: 9px 14px;
 
-    background: rgba(255, 248, 225, 0.96);
+    background: rgba(255, 253, 247, 0.95);
 
-    border: 2px solid rgba(183, 28, 28, 0.32);
-    border-radius: 14px;
+    border: 1px solid rgba(153, 27, 27, 0.25);
+    border-radius: 12px;
 
-    box-shadow:
-        0 4px 10px var(--shadow-soft);
+    box-shadow: var(--shadow-soft);
 }
 
+
 /* =========================================================
-   ПОДСКАЗКИ
+   HELP
    ========================================================= */
 
 .game-help {
-    width: fit-content;
-    max-width: min(94vw, 700px);
-
-    margin: 2px auto 0;
-    padding: 8px 15px;
+    width: 100%;
+    max-width: 630px;
 
     display: flex;
     align-items: center;
     justify-content: center;
 
-    gap: 8px 20px;
     flex-wrap: wrap;
 
-    background: rgba(255, 248, 225, 0.94);
+    gap: 7px 18px;
 
-    border: 2px solid rgba(141, 110, 99, 0.8);
-    border-radius: 15px;
+    padding: 9px 14px;
 
-    color: var(--text-dark);
+    background: rgba(255, 253, 247, 0.88);
+
+    border: 1px solid rgba(98, 66, 56, 0.25);
+    border-radius: 16px;
+
+    box-shadow: var(--shadow-soft);
+
+    color: var(--text-muted);
 
     font-size: 12px;
-    line-height: 1.3;
+    line-height: 1.35;
 
     text-align: center;
 
-    box-shadow:
-        0 5px 14px var(--shadow-soft);
-
-    backdrop-filter: blur(5px);
+    backdrop-filter: blur(8px);
 }
 
 .game-help span {
@@ -311,52 +316,74 @@ canvas:focus-visible {
     white-space: nowrap;
 }
 
+
 /* =========================================================
-   АДАПТИВ
+   DESKTOP HOVER
+   ========================================================= */
+
+@media (hover: hover) and (pointer: fine) {
+    .game-header {
+        transition:
+            transform 180ms ease,
+            box-shadow 180ms ease;
+    }
+
+    .game-header:hover {
+        transform: translateY(-2px);
+
+        box-shadow:
+            0 24px 50px rgba(58, 36, 29, 0.20);
+    }
+}
+
+
+/* =========================================================
+   TABLET / MOBILE
    ========================================================= */
 
 @media (max-width: 700px) {
     body {
-        align-items: flex-start;
-        padding: 14px 10px 20px;
+        padding: 14px 10px 24px;
     }
 
     .app-wrapper {
-        width: 100%;
-        gap: 12px;
+        gap: 13px;
     }
 
     .game-header {
-        width: 100%;
-        padding: 13px 20px 15px;
-
-        border-radius: 18px;
+        padding: 15px 18px 14px;
+        border-radius: 20px;
     }
 
     .game-header::before,
     .game-header::after {
-        display: none;
+        font-size: 14px;
     }
 
-    .game-header h1 {
-        font-size: 1.9rem;
+    .game-header::before {
+        left: 13px;
+        top: 12px;
     }
 
-    .subtitle {
-        font-size: 0.88rem;
+    .game-header::after {
+        right: 13px;
+        bottom: 11px;
     }
 
     .game-container {
-        width: 100%;
+        padding: 8px;
 
-        padding: 7px;
-
-        border-width: 3px;
+        border-width: 2px;
         border-radius: 20px;
 
         box-shadow:
-            0 5px 0 #2D1B18,
-            0 10px 20px rgba(0, 0, 0, 0.28);
+            0 8px 0 rgba(58, 36, 29, 0.9),
+            0 18px 35px rgba(0, 0, 0, 0.22);
+    }
+
+    .game-container::before {
+        inset: 4px;
+        border-radius: 15px;
     }
 
     canvas {
@@ -364,72 +391,85 @@ canvas:focus-visible {
     }
 
     .game-help {
-        width: calc(100% - 20px);
-        max-width: 390px;
+        width: calc(100% - 4px);
 
-        margin-top: 2px;
-        padding: 8px 10px;
+        padding: 8px 9px;
 
-        flex-direction: column;
-        gap: 4px;
-
-        border-radius: 14px;
+        gap: 4px 12px;
 
         font-size: 11px;
-        line-height: 1.25;
-    }
-
-    .game-help span {
-        white-space: normal;
-    }
-
-    .game-status {
-        width: 100%;
     }
 }
 
+
 /* =========================================================
-   ОЧЕНЬ УЗКИЕ ЭКРАНЫ
+   VERY SMALL PHONES
    ========================================================= */
 
 @media (max-width: 380px) {
     body {
-        padding: 10px 7px 16px;
+        padding: 10px 7px 18px;
     }
 
     .game-header {
-        padding: 11px 14px 13px;
+        padding: 13px 14px 12px;
     }
 
     .game-header h1 {
-        font-size: 1.7rem;
+        font-size: 1.85rem;
     }
 
     .subtitle {
-        font-size: 0.82rem;
+        font-size: 0.78rem;
+    }
+
+    .game-container {
+        padding: 6px;
+        border-radius: 17px;
     }
 
     .game-help {
-        width: calc(100% - 12px);
-
-        padding: 7px 8px;
-
         font-size: 10px;
-        gap: 3px;
+        padding: 7px 6px;
     }
 }
 
+
 /* =========================================================
-   ВЫСОКИЕ ЭКРАНЫ
+   SHORT SCREENS
    ========================================================= */
 
-@media (min-height: 900px) and (min-width: 701px) {
+@media (max-height: 760px) and (min-width: 701px) {
     body {
-        padding-top: 40px;
-        padding-bottom: 40px;
+        padding-top: 14px;
+        padding-bottom: 20px;
     }
 
     .app-wrapper {
-        gap: 18px;
+        gap: 11px;
+    }
+
+    .game-header {
+        padding: 12px 24px;
+    }
+
+    .game-header h1 {
+        font-size: 2rem;
+    }
+}
+
+
+/* =========================================================
+   REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
     }
 }
