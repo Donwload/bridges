@@ -4,14 +4,22 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
-const source = fs.readFileSync(
+const checkerSource = fs.readFileSync(
+  path.join(__dirname, '..', 'logic', 'solution-checker.js'),
+  'utf8'
+);
+
+const logicSource = fs.readFileSync(
   path.join(__dirname, '..', 'logic.js'),
   'utf8'
 );
 
 const context = vm.createContext({});
+
 vm.runInContext(
-  source + '\nthis.BridgesGameLogic = BridgesGameLogic;',
+  checkerSource + '\n' + logicSource +
+    '\nthis.SolutionChecker = SolutionChecker;' +
+    '\nthis.BridgesGameLogic = BridgesGameLogic;',
   context
 );
 
@@ -26,6 +34,20 @@ function createGame(size = 5, coordinates = []) {
 
   return game;
 }
+
+test('использует отдельный SolutionChecker для проверки решений', () => {
+  const game = createGame(5, [[0, 0], [0, 2]]);
+
+  game.islands.set('0,0', 1);
+  game.islands.set('0,2', 1);
+
+  assert.equal(
+    game.solutionChecker instanceof context.SolutionChecker,
+    true
+  );
+
+  assert.equal(game.solutionChecker.countSolutions(2), 1);
+});
 
 test('создание одного и двух мостов, затем удаление', () => {
   const game = createGame(5, [[0, 0], [0, 2]]);
