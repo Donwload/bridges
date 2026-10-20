@@ -1,38 +1,20 @@
+/*
+ * Главный класс рендерера.
+ *
+ * Код разделён на классические script-модули в папке renderer/.
+ * Каждый модуль добавляет свою часть методов к прототипу класса.
+ * Это сохраняет прямой запуск index.html без сборщика и ES-модулей.
+ */
 class BridgesGameRenderer {
   constructor(canvasId, logic) {
     this.canvas = document.getElementById(canvasId);
     this.ctx = this.canvas.getContext('2d');
     this.logic = logic;
+    this.statusElement = document.getElementById('gameStatus');
 
     this.gridSize = 7;
     this.cellSize = 85;
     this.offset = 60;
-
-    this.colors = {
-      water_base: "#4FC3F7",
-      water_dark: "#0288D1",
-      water_light: "#81D4FA",
-      island_dirt: "#5D4037",
-      island_grass: "#66BB6A",
-      island_grass_light: "#81C784",
-      island_shadow: "rgba(0,0,0,0.3)",
-      bridge_wood: "#795548",
-      bridge_plank: "#A1887F",
-      bridge_rope: "#D7CCC8",
-      btn_bg: "#FFB74D",
-      btn_bg_hover: "#FFA726",
-      btn_border: "#E65100",
-      text_dark: "#3E2723",
-      text_white: "#FFFFFF",
-      progress_empty: "rgba(255,255,255,0.3)",
-      progress_fill: "#4CAF50",
-      progress_over: "#FF5252"
-    };
-
-    this.canvasW = this.gridSize * this.cellSize + 35;
-    this.canvasH = this.gridSize * this.cellSize + 110;
-    this.canvas.width = this.canvasW;
-    this.canvas.height = this.canvasH;
 
     this.selectedIsland = null;
     this.hoveredIsland = null;
@@ -40,40 +22,425 @@ class BridgesGameRenderer {
     this.btn2Hovered = false;
     this.isVictoryShown = false;
 
+    // Вид: приближение и сдвиг карты.
+    this.zoom = 1;
+    this.minZoom = 1;
+    this.maxZoom = 8;
+    this.fitScale = 1;
+    this.viewScale = 1;
+    this.viewX = 0;
+    this.viewY = 0;
+    this.panning = null;
+    this.pointers = new Map();
+    this.pinch = null;
+    this.hoverZoomBtn = null;
+
+    // Режим бесконечного расширения: после каждой победы карта растёт.
+    this.endless = true;
+
+    // Сколько расширений уже сделано (нужно для растущего прироста островов).
+    this.expansionsDone = 0;
+
+    this.level = 1;
+
+    this.levels = [
+        { minIslands: 6,  maxIslands: 7,  gridSize: 7, name: "🌱 Начало" },
+        { minIslands: 7,  maxIslands: 8,  gridSize: 7, name: "🌿 Тропа" },
+        { minIslands: 8,  maxIslands: 9,  gridSize: 7, name: "🏡 Деревня" },
+        { minIslands: 9,  maxIslands: 10, gridSize: 7, name: "🏰 Замок" },
+        { minIslands: 10, maxIslands: 11, gridSize: 8, name: "⚔️ Испытание" },
+        { minIslands: 11, maxIslands: 12, gridSize: 8, name: "🛡️ Крепость" },
+        { minIslands: 12, maxIslands: 13, gridSize: 8, name: "👑 Королевство" },
+        { minIslands: 13, maxIslands: 14, gridSize: 9, name: "🏯 Империя" },
+        { minIslands: 14, maxIslands: 15, gridSize: 9, name: "🔥 Великий путь" },
+        { minIslands: 15, maxIslands: 16, gridSize: 9, name: "🐉 Легенда" }
+    ];
+    
     this.time = 0;
     this.victoryAlpha = 0;
     this.lastMousePos = { x: 0, y: 0 };
+    this.confetti = [];
+    this.confettiStarted = false;
+    this.sparkles = [];
+    this.birds = [];
+    this.fireflies = [];
+    this.pollen = [];
 
-    this.btn1Coords = [60, this.gridSize * this.cellSize + 40, 290, this.gridSize * this.cellSize + 85];
-    this.btn2Coords = [330, this.gridSize * this.cellSize + 40, 560, this.gridSize * this.cellSize + 85];
+    /*
+     * Дельта времени последнего кадра в секундах. Нужна эффектам,
+     * чтобы их скорость не зависела от частоты кадров.
+     */
+    this.deltaTime = 0;
+
+    for (let i = 0; i < 7; i++) {
+        this.birds.push({
+            x: Math.random() * 2000 - 400,
+            y: Math.random() * 400 + 60,
+            vx: 0.6 + Math.random() * 1.2,
+            vy: (Math.random() - 0.5) * 0.4,
+            flap: Math.random() * Math.PI * 2,
+            scale: 0.8 + Math.random() * 0.7
+        });
+    }
+
+    /*
+     * Светлячки для ночного скина. Позиции нормированы, поэтому
+     * они переживают изменение размеров мира, а рисуются только
+     * при ночной палитре.
+     */
+    for (let i = 0; i < 18; i++) {
+        this.fireflies.push({
+            nx: Math.random(),
+            ny: Math.random(),
+            phase: Math.random() * Math.PI * 2,
+            size: 1.1 + Math.random() * 1.4,
+            alpha: 0.45 + Math.random() * 0.5,
+            swing: 10 + Math.random() * 22,
+            swingSpeed: 0.25 + Math.random() * 0.4,
+            pulseSpeed: 0.8 + Math.random() * 1.2
+        });
+    }
+
+    /*
+     * Пыльца экспериментального скина: нормированные позиции,
+     * поэтому она переживает изменение размеров мира.
+     */
+    const pollenColors = [
+        "rgba(253, 230, 138, 0.85)",
+        "rgba(253, 186, 116, 0.8)",
+        "rgba(255, 255, 255, 0.75)",
+        "rgba(244, 114, 182, 0.7)"
+    ];
+
+    for (let i = 0; i < 14; i++) {
+        this.pollen.push({
+            nx: Math.random(),
+            ny: Math.random(),
+            phase: Math.random() * Math.PI * 2,
+            size: 1.2 + Math.random() * 1.8,
+            alpha: 0.35 + Math.random() * 0.4,
+            swing: 8 + Math.random() * 18,
+            speed: 0.2 + Math.random() * 0.35,
+            pulse: 0.7 + Math.random() * 1.1,
+            color: pollenColors[i % pollenColors.length]
+        });
+    }
+
+    // Кэш статичной части мира.
+    //
+    // Мир разбит на кластеры-чанки. Мосты и острова рисуются в отдельные
+    // offscreen-слои и перерисовываются только тогда, когда меняются.
+    // Каждый кадр эти слои просто копируются на экран, поэтому игровой цикл
+    // больше не пересчитывает и не перерисовывает всю карту заново.
+    this.chunkSize = 256;
+    this.chunkScale = 1;
+    this.bridgeChunks = new Map();
+    this.islandChunks = new Map();
+    this.worldElements = null;
+    this.waterCache = null;
+
+    this.initSkin();
+
+    this.updateCanvasGeometry();
 
     this.setupEvents();
+    this.setupSkinUI();
+    this.setupRestartConfirm();
     this.startAnimationLoop();
   }
 
   startAnimationLoop() {
-    const animate = () => {
-      this.time += 0.02;
-      if (this.isVictoryShown && this.victoryAlpha < 1) {
-        this.victoryAlpha = Math.min(1, this.victoryAlpha + 0.04);
+    let lastTimestamp = null;
+    let lastDrawTimestamp = 0;
+    let animationFrameId = null;
+
+    /*
+     * Ограничиваем отрисовку ~60 FPS. На 144-Гц мониторах
+     * requestAnimationFrame срабатывает чаще, но лишние кадры
+     * пропускаются, экономя CPU и батарею.
+     */
+    const frameInterval = 1000 / 60;
+
+    const animate = (timestamp) => {
+      // Следующий кадр планируем сразу, чтобы цикл не останавливался
+      // на пропущенном кадре.
+      animationFrameId = requestAnimationFrame(animate);
+
+      if (lastTimestamp === null) {
+        lastTimestamp = timestamp - frameInterval;
       }
+
+      const elapsed = timestamp - lastDrawTimestamp;
+
+      if (elapsed < frameInterval - 1) {
+        return;
+      }
+
+      lastDrawTimestamp = timestamp - (elapsed % frameInterval);
+
+      const deltaTime = Math.min(
+        (timestamp - lastTimestamp) / 1000,
+        0.05
+      );
+
+      lastTimestamp = timestamp;
+      this.deltaTime = deltaTime;
+
+      this.time += deltaTime * 1.2;
+
+      if (this.isVictoryShown && this.victoryAlpha < 1) {
+        this.victoryAlpha = Math.min(
+          1,
+          this.victoryAlpha + deltaTime * 2.4
+        );
+      }
+
       this.draw();
-      requestAnimationFrame(animate);
     };
-    requestAnimationFrame(animate);
+
+    const startAnimation = () => {
+      if (animationFrameId !== null || document.hidden) {
+        return;
+      }
+
+      lastTimestamp = null;
+      lastDrawTimestamp = 0;
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    const stopAnimation = () => {
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+
+      lastTimestamp = null;
+    };
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        stopAnimation();
+      } else {
+        startAnimation();
+      }
+    });
+
+    startAnimation();
   }
 
   setupEvents() {
-    this.canvas.addEventListener('mousemove', (e) => {
-      this.lastMousePos = this.getMousePos(e);
-      this.onMouseMove(this.lastMousePos);
-    });
-    this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(this.getMousePos(e)));
-    this.canvas.addEventListener('mouseup', (e) => this.onMouseUp(this.getMousePos(e)));
-    this.canvas.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      this.onContextMenu(this.getMousePos(e));
-    });
+      // Колесо мыши — приближение.
+      this.canvas.addEventListener('wheel', (e) => {
+          e.preventDefault();
+
+          const pos = this.getMousePos(e);
+          const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+
+          this.zoomAt(pos.x, pos.y, factor);
+      }, { passive: false });
+
+      this.canvas.addEventListener('pointermove', (e) => {
+          const pos = this.getMousePos(e);
+
+          if (e.pointerType === 'touch' && this.pointers.has(e.pointerId)) {
+              this.pointers.set(e.pointerId, pos);
+          }
+
+          // Два пальца — приближение/отдаление.
+          if (this.pinch && this.pointers.size >= 2) {
+              this.updatePinch();
+              return;
+          }
+
+          // Перетаскивание пустого места — сдвиг карты.
+          if (this.panning && this.panning.pointerId === e.pointerId) {
+              this.viewX =
+                  this.panning.originX + (pos.x - this.panning.startX);
+              this.viewY =
+                  this.panning.originY + (pos.y - this.panning.startY);
+
+              this.clampView();
+              return;
+          }
+
+          this.lastMousePos = this.toWorld(pos.x, pos.y);
+
+          this.onMouseMove(pos);
+
+          if (this.selectedIsland && e.pointerType !== 'mouse') {
+              this.canvas.setPointerCapture?.(e.pointerId);
+          }
+      });
+
+      this.canvas.addEventListener('pointerdown', (e) => {
+          const pos = this.getMousePos(e);
+
+          // Второй палец — начинаем pinch.
+          if (e.pointerType === 'touch') {
+              this.pointers.set(e.pointerId, pos);
+
+              if (this.pointers.size === 2) {
+                  this.startPinch();
+                  return;
+              }
+
+              if (this.pointers.size > 2) return;
+          }
+
+          // Средняя кнопка мыши — сдвиг карты.
+          if (e.button === 1) {
+              e.preventDefault();
+              this.startPan(pos, e.pointerId);
+              return;
+          }
+
+          // ПКМ: сразу удаляем мост под курсором.
+          if (e.button === 2) {
+              e.preventDefault();
+              this.onContextMenu(pos);
+              return;
+          }
+
+          // Только основная кнопка мыши / touch.
+          if (e.button !== 0) return;
+
+          // Кнопки приближения.
+          const zoomButton = this.getZoomButtonClicked(pos.x, pos.y);
+
+          if (zoomButton) {
+              const cx = this.viewportW / 2;
+              const cy = this.viewportH / 2;
+
+              if (zoomButton === 'in') this.zoomAt(cx, cy, 1.4);
+              if (zoomButton === 'out') this.zoomAt(cx, cy, 1 / 1.4);
+              if (zoomButton === 'reset') this.resetView();
+
+              return;
+          }
+
+          // На телефоне касание существующего моста удаляет его.
+          if (e.pointerType === 'touch') {
+              const bridge = this.findBridgeAtPos(pos.x, pos.y);
+
+              if (bridge) {
+                  const removed = this.logic.removeBridge(
+                      bridge[0],
+                      bridge[1]
+                  );
+
+                  if (removed) {
+                      this.invalidateBridgeArea(
+                          bridge[0],
+                          bridge[1]
+                      );
+                  }
+
+                  this.selectedIsland = null;
+                  this.lastMousePos = this.toWorld(pos.x, pos.y);
+
+                  if (removed && this.logic.checkVictory()) {
+                      this.isVictoryShown = true;
+                  }
+
+                  return;
+              }
+          }
+
+          // Клик по пустому месту начинает сдвиг карты.
+          const island = this.getIslandAtPos(pos.x, pos.y);
+          const overButton = this.isVictoryShown
+              ? this.isOverVictoryButton(pos)
+              : this.getBtnClicked(pos.x, pos.y) !== 0;
+
+          if (!island && !overButton) {
+              this.startPan(pos, e.pointerId);
+              return;
+          }
+
+          this.onMouseDown(pos);
+
+          if (this.selectedIsland) {
+              this.canvas.setPointerCapture?.(e.pointerId);
+          }
+      });
+
+      this.canvas.addEventListener('pointerup', (e) => {
+          const pos = this.getMousePos(e);
+
+          if (e.pointerType === 'touch') {
+              this.pointers.delete(e.pointerId);
+
+              if (this.pinch && this.pointers.size < 2) {
+                  this.pinch = null;
+              }
+          }
+
+          if (this.panning && this.panning.pointerId === e.pointerId) {
+              this.panning = null;
+              this.canvas.style.cursor = 'grab';
+
+              if (this.canvas.hasPointerCapture?.(e.pointerId)) {
+                  this.canvas.releasePointerCapture(e.pointerId);
+              }
+
+              return;
+          }
+
+          if (e.button !== 0) return;
+
+          this.onMouseUp(pos);
+
+          if (this.canvas.hasPointerCapture?.(e.pointerId)) {
+              this.canvas.releasePointerCapture(e.pointerId);
+          }
+      });
+
+      this.canvas.addEventListener('pointercancel', (e) => {
+          this.pointers.delete(e.pointerId);
+          this.pinch = null;
+          this.panning = null;
+          this.selectedIsland = null;
+
+          if (this.canvas.hasPointerCapture?.(e.pointerId)) {
+              this.canvas.releasePointerCapture(e.pointerId);
+          }
+      });
+
+      this.canvas.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+      });
+
+      // Клавиатура: + / − — зум, 0 — показать всю карту.
+      this.canvas.addEventListener('keydown', (e) => {
+          if (e.key === '+' || e.key === '=') {
+              e.preventDefault();
+              this.zoomAt(this.viewportW / 2, this.viewportH / 2, 1.25);
+          } else if (e.key === '-' || e.key === '_') {
+              e.preventDefault();
+              this.zoomAt(this.viewportW / 2, this.viewportH / 2, 1 / 1.25);
+          } else if (e.key === '0') {
+              e.preventDefault();
+              this.resetView();
+          }
+      });
+
+      /*
+       * При изменении размеров окна пересчитываем геометрию холста
+       * с небольшой задержкой, чтобы не делать это на каждый пиксель
+       * перетаскивания.
+       */
+      let resizeTimer = null;
+
+      window.addEventListener('resize', () => {
+          if (resizeTimer !== null) clearTimeout(resizeTimer);
+
+          resizeTimer = setTimeout(() => {
+              resizeTimer = null;
+
+              this.updateCanvasGeometry();
+              this.draw();
+          }, 120);
+      });
   }
 
   getMousePos(e) {
@@ -83,454 +450,262 @@ class BridgesGameRenderer {
     return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
   }
 
-  getIslandAtPos(x, y) { return this.logic.getIslandAtPos(x, y, this.cellSize, this.offset); }
+  updateCanvasGeometry() {
+      const boardPadding = 35;
 
-  getBtnClicked(x, y) {
-    const [x1, y1, x2, y2] = this.btn1Coords;
-    if (x >= x1 && x <= x2 && y >= y1 && y <= y2) return 1;
-    const [x3, y3, x4, y4] = this.btn2Coords;
-    if (x >= x3 && x <= x4 && y >= y3 && y <= y4) return 2;
-    return 0;
-  }
+      // Размер игровой сетки в «мировых» пикселях.
+      const boardSize = this.gridSize * this.cellSize;
 
-  onMouseMove(pos) {
-    if (this.isVictoryShown) return;
-    const island = this.getIslandAtPos(pos.x, pos.y);
-    const islandChanged = JSON.stringify(island) !== JSON.stringify(this.hoveredIsland);
-    if (islandChanged) this.hoveredIsland = island;
+      // Мир целиком (с отступами по краям).
+      this.worldW = boardSize + boardPadding * 2;
+      this.worldH = boardSize + boardPadding * 2;
 
-    const btn = this.getBtnClicked(pos.x, pos.y);
-    const btnChanged = (btn === 1) !== this.btn1Hovered || (btn === 2) !== this.btn2Hovered;
-    if (btnChanged) { this.btn1Hovered = (btn === 1); this.btn2Hovered = (btn === 2); }
+      /*
+       * Canvas вписываем в реально доступную ширину страницы.
+       * Так мы не рисуем больше пикселей, чем браузер показывает:
+       * на узких экранах это заметно экономит отрисовку.
+       */
+      const container = this.canvas.parentElement;
+      const cssWidth =
+          (container && container.clientWidth) ||
+          (typeof window !== "undefined" && window.innerWidth) ||
+          720;
 
-    this.canvas.style.cursor = (btn || island) ? 'pointer' : 'crosshair';
-  }
+      const horizontalPadding = 22; // .game-container padding: 11px * 2
+      const availableWidth = Math.max(
+          320,
+          cssWidth - horizontalPadding
+      );
 
-  onMouseDown(pos) {
-    if (this.isVictoryShown) {
-      const btnW = 180, btnH = 45;
-      const btnX1 = this.canvasW / 2 - btnW / 2, btnY1 = this.canvasH / 2 + 50;
-      if (pos.x >= btnX1 && pos.x <= btnX1 + btnW && pos.y >= btnY1 && pos.y <= btnY1 + btnH) {
-        this.logic.generateValidLevel();
-        this.isVictoryShown = false;
-        this.victoryAlpha = 0;
-      }
-      return;
-    }
-    const btn = this.getBtnClicked(pos.x, pos.y);
-    if (btn === 1) { this.logic.generateValidLevel(); return; }
-    if (btn === 2) { this.logic.reset(); return; }
+      const VIEW_LIMIT = Math.min(1100, availableWidth);
+      this.fitScale = Math.min(1, VIEW_LIMIT / this.worldW);
 
-    const island = this.getIslandAtPos(pos.x, pos.y);
-    if (island) this.selectedIsland = island;
-  }
+      this.viewportW = Math.round(this.worldW * this.fitScale);
+      this.viewportH = Math.round(this.worldH * this.fitScale);
 
-  onMouseUp(pos) {
-    if (this.selectedIsland && !this.isVictoryShown) {
-      const targetIsland = this.getIslandAtPos(pos.x, pos.y);
-      if (targetIsland && JSON.stringify(targetIsland) !== JSON.stringify(this.selectedIsland)) {
-        if (!this.logic.addBridge(this.selectedIsland, targetIsland)) this.flashWarning();
-      }
-      this.selectedIsland = null;
-      if (this.logic.checkVictory()) this.isVictoryShown = true;
-    }
-  }
+      this.buttonBarHeight = 92;
 
-  onContextMenu(pos) {
-    if (this.isVictoryShown) return;
-    const island = this.getIslandAtPos(pos.x, pos.y);
-    if (island) this.logic.removeBridge(island);
-  }
+      this.canvasW = this.viewportW;
+      this.canvasH = this.viewportH + this.buttonBarHeight;
 
-  flashWarning() {
-    this.canvas.style.transform = "translateX(-5px)";
-    setTimeout(() => this.canvas.style.transform = "translateX(5px)", 50);
-    setTimeout(() => this.canvas.style.transform = "translateX(-5px)", 100);
-    setTimeout(() => this.canvas.style.transform = "translateX(0)", 150);
-  }
+      this.canvas.width = this.canvasW;
+      this.canvas.height = this.canvasH;
 
-  drawTopDownWater() {
-    const w = this.canvasW, h = this.canvasH;
+      // На небольших полях рисуем кластеры с запасом по чёткости,
+      // чтобы приближение не превращало острова в мыло. На больших
+      // картах память важнее, поэтому там остаётся масштаб 1:1.
+      this.chunkScale = this.worldW <= 1200 ? 2 : 1;
 
-    const gradient = this.ctx.createLinearGradient(0, 0, w, h);
-    gradient.addColorStop(0, this.colors.water_base);
-    gradient.addColorStop(1, this.colors.water_dark);
-    this.ctx.fillStyle = gradient;
-    this.ctx.fillRect(0, 0, w, h);
+      /*
+        * offset — это координата ЦЕНТРА первой клетки.
+        *
+        * Поэтому к внешнему отступу добавляем половину клетки.
+        */
+      this.offset = boardPadding + this.cellSize / 2;
 
-    this.ctx.save();
-    this.ctx.globalAlpha = 0.15;
-    const stripeWidth = 30;
-    const offset = (this.time * 15) % (stripeWidth * 2);
+      // Новая карта — показываем её целиком.
+      this.resetView();
 
-    for (let i = -h; i < w + h; i += stripeWidth * 2) {
-      this.ctx.fillStyle = this.colors.water_light;
-      this.ctx.beginPath();
-      this.ctx.moveTo(i + offset, 0);
-      this.ctx.lineTo(i + offset + stripeWidth, 0);
-      this.ctx.lineTo(i + offset + stripeWidth - h, h);
-      this.ctx.lineTo(i + offset - h, h);
-      this.ctx.closePath();
-      this.ctx.fill();
-    }
-    this.ctx.restore();
+      // Кнопки располагаем по центру нижней панели.
+      const buttonWidth = 230;
+      const buttonGap = 20;
+      const buttonHeight = 45;
 
-    this.ctx.save();
-    for (let i = 0; i < 6; i++) {
-      const cx = (w * 0.15) + (i * w * 0.14);
-      const cy = (h * 0.2) + (i * h * 0.12);
-      const baseRadius = 25 + (i % 3) * 15;
-      const radius = baseRadius + Math.sin(this.time * 1.5 + i) * 8;
+      const totalButtonsWidth = buttonWidth * 2 + buttonGap;
+      const buttonsStartX = (this.canvasW - totalButtonsWidth) / 2;
+      const buttonsY =
+          this.viewportH + (this.buttonBarHeight - buttonHeight) / 2;
 
-      this.ctx.strokeStyle = `rgba(255, 255, 255, ${0.2 + (i % 2) * 0.1})`;
-      this.ctx.lineWidth = 2;
-      this.ctx.beginPath();
-      this.ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      this.ctx.stroke();
-    }
-    this.ctx.restore();
+      this.btn1Coords = [
+          buttonsStartX,
+          buttonsY,
+          buttonsStartX + buttonWidth,
+          buttonsY + buttonHeight
+      ];
 
-    this.ctx.save();
-    this.ctx.globalAlpha = 0.3;
-    for (let i = 0; i < 10; i++) {
-      const x = ((i * 97) + this.time * 8) % w;
-      const y = ((i * 53) + Math.sin(this.time * 0.8 + i) * 15) % h;
-      this.ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-      this.ctx.beginPath();
-      this.ctx.ellipse(x, y, 6, 2, this.time + i, 0, Math.PI * 2);
-      this.ctx.fill();
-    }
-    this.ctx.restore();
-  }
+      this.btn2Coords = [
+          buttonsStartX + buttonWidth + buttonGap,
+          buttonsY,
+          buttonsStartX + buttonWidth * 2 + buttonGap,
+          buttonsY + buttonHeight
+      ];
 
-  drawCartoonIsland(cx, cy, target, current, isHovered, isSelected) {
-    const radius = 28;
-    const isOverfilled = current > target;
-    const isComplete = current === target;
-    const fillRatio = Math.min(current / target, 1);
+      // Кнопки приближения в правом верхнем углу.
+      const zSize = 34;
+      const zGap = 8;
+      const zX = this.canvasW - zSize - 12;
+      const zY = 12;
 
-    // Тень
-    this.ctx.fillStyle = this.colors.island_shadow;
-    this.ctx.beginPath();
-    this.ctx.ellipse(cx, cy + radius - 5, radius * 0.9, radius * 0.4, 0, 0, Math.PI * 2);
-    this.ctx.fill();
+      this.zoomInRect = { x: zX, y: zY, w: zSize, h: zSize };
+      this.zoomOutRect = { x: zX, y: zY + zSize + zGap, w: zSize, h: zSize };
+      this.zoomResetRect = {
+          x: zX,
+          y: zY + (zSize + zGap) * 2,
+          w: zSize,
+          h: zSize
+      };
 
-    // Земля
-    this.ctx.fillStyle = this.colors.island_dirt;
-    this.ctx.beginPath();
-    this.ctx.arc(cx, cy + 5, radius, 0, Math.PI * 2);
-    this.ctx.fill();
-
-    // Трава с градиентом
-    const grad = this.ctx.createRadialGradient(cx - 8, cy - 12, 5, cx, cy, radius);
-    grad.addColorStop(0, this.colors.island_grass_light);
-    grad.addColorStop(1, this.colors.island_grass);
-
-    this.ctx.fillStyle = grad;
-    this.ctx.beginPath();
-    this.ctx.arc(cx, cy - 2, radius, 0, Math.PI * 2);
-    this.ctx.fill();
-
-    // Обводка
-    this.ctx.strokeStyle = "#2E7D32";
-    this.ctx.lineWidth = 2.5;
-    this.ctx.stroke();
-
-    // Кольцо прогресса (заполненность)
-    if (!isOverfilled) {
-      const progressRadius = radius + 8;
-      const startAngle = -Math.PI / 2;
-      const endAngle = startAngle + (Math.PI * 2 * fillRatio);
-
-      // Фоновое кольцо
-      this.ctx.strokeStyle = this.colors.progress_empty;
-      this.ctx.lineWidth = 4;
-      this.ctx.beginPath();
-      this.ctx.arc(cx, cy, progressRadius, 0, Math.PI * 2);
-      this.ctx.stroke();
-
-      // Заполненное кольцо
-      if (fillRatio > 0) {
-        this.ctx.strokeStyle = isComplete ? this.colors.progress_fill : "#FFC107";
-        this.ctx.lineWidth = 4;
-        this.ctx.lineCap = 'round';
-        this.ctx.beginPath();
-        this.ctx.arc(cx, cy, progressRadius, startAngle, endAngle);
-        this.ctx.stroke();
-        this.ctx.lineCap = 'butt';
-      }
-    }
-
-    // Анимация переполнения
-    if (isOverfilled) {
-      const pulseScale = 1 + Math.sin(this.time * 8) * 0.1;
-      const glowIntensity = 0.5 + Math.sin(this.time * 8) * 0.3;
-
-      // Красное свечение
-      this.ctx.save();
-      this.ctx.shadowColor = this.colors.progress_over;
-      this.ctx.shadowBlur = 20 * glowIntensity;
-      this.ctx.strokeStyle = this.colors.progress_over;
-      this.ctx.lineWidth = 4;
-      this.ctx.beginPath();
-      this.ctx.arc(cx, cy, radius * pulseScale + 5, 0, Math.PI * 2);
-      this.ctx.stroke();
-      this.ctx.restore();
-
-      // Пульсирующее кольцо
-      this.ctx.strokeStyle = `rgba(255, 82, 82, ${glowIntensity})`;
-      this.ctx.lineWidth = 3;
-      this.ctx.setLineDash([8, 4]);
-      this.ctx.lineDashOffset = -this.time * 30;
-      this.ctx.beginPath();
-      this.ctx.arc(cx, cy, radius + 12, 0, Math.PI * 2);
-      this.ctx.stroke();
-      this.ctx.setLineDash([]);
-    }
-
-    // Свечение при наведении/выборе
-    if (isHovered || isSelected) {
-      this.ctx.strokeStyle = "#FFEB3B";
-      this.ctx.lineWidth = 3;
-      this.ctx.setLineDash([5, 5]);
-      this.ctx.lineDashOffset = -this.time * 20;
-      this.ctx.beginPath();
-      this.ctx.arc(cx, cy, radius + 6, 0, Math.PI * 2);
-      this.ctx.stroke();
-      this.ctx.setLineDash([]);
-    }
-
-    // Дерево
-    if (!isSelected) {
-      this.ctx.fillStyle = "#5D4037";
-      this.ctx.fillRect(cx - 3, cy - 8, 6, 10);
-      this.ctx.fillStyle = "#388E3C";
-      this.ctx.beginPath();
-      this.ctx.arc(cx, cy - 12, 9, 0, Math.PI * 2);
-      this.ctx.fill();
-      this.ctx.strokeStyle = "#1B5E20";
-      this.ctx.lineWidth = 1.5;
-      this.ctx.stroke();
-    }
-
-    // Цифра
-    this.ctx.fillStyle = this.colors.text_white;
-    this.ctx.font = "bold 18px Arial, sans-serif";
-    this.ctx.textAlign = "center";
-    this.ctx.textBaseline = "middle";
-    this.ctx.strokeStyle = "rgba(0,0,0,0.5)";
-    this.ctx.lineWidth = 3;
-    this.ctx.strokeText(target.toString(), cx, cy + 2);
-    this.ctx.fillText(target.toString(), cx, cy + 2);
-
-    // Индикатор переполнения (улучшенный)
-    if (isOverfilled) {
-      const overAmount = current - target;
-      const bounceY = Math.abs(Math.sin(this.time * 6)) * 5;
-
-      // Красный круг с "!"
-      this.ctx.fillStyle = this.colors.progress_over;
-      this.ctx.beginPath();
-      this.ctx.arc(cx + 20, cy - 20 - bounceY, 12, 0, Math.PI * 2);
-      this.ctx.fill();
-
-      this.ctx.strokeStyle = "#FFFFFF";
-      this.ctx.lineWidth = 2;
-      this.ctx.stroke();
-
-      this.ctx.fillStyle = "#FFFFFF";
-      this.ctx.font = "bold 16px Arial, sans-serif";
-      this.ctx.fillText("!", cx + 20, cy - 18 - bounceY);
-
-      // Текст с количеством лишних мостов
-      this.ctx.fillStyle = this.colors.progress_over;
-      this.ctx.font = "bold 12px Arial, sans-serif";
-      this.ctx.strokeStyle = "#FFFFFF";
-      this.ctx.lineWidth = 2;
-      this.ctx.strokeText(`+${overAmount}`, cx + 20, cy - 35 - bounceY);
-      this.ctx.fillText(`+${overAmount}`, cx + 20, cy - 35 - bounceY);
-    }
-  }
-
-  drawMedievalBridge(x1, y1, x2, y2, count) {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    const angle = Math.atan2(dy, dx);
-
-    this.ctx.save();
-    this.ctx.translate(x1, y1);
-    this.ctx.rotate(angle);
-
-    const offsets = count === 1 ? [0] : [-12, 12];
-
-    for (const offset of offsets) {
-      this.ctx.save();
-      this.ctx.translate(0, offset);
-
-      this.ctx.strokeStyle = this.colors.bridge_rope;
-      this.ctx.lineWidth = 3;
-      this.ctx.setLineDash([4, 4]);
-      this.ctx.beginPath();
-      this.ctx.moveTo(0, -10);
-      this.ctx.lineTo(len, -10);
-      this.ctx.moveTo(0, 10);
-      this.ctx.lineTo(len, 10);
-      this.ctx.stroke();
-      this.ctx.setLineDash([]);
-
-      this.ctx.fillStyle = this.colors.bridge_wood;
-      for (let i = 10; i < len; i += 20) {
-        this.ctx.fillRect(i - 2, -11, 4, 22);
-      }
-
-      this.ctx.fillStyle = this.colors.bridge_plank;
-      this.ctx.fillRect(0, -8, len, 16);
-
-      this.ctx.strokeStyle = this.colors.bridge_wood;
-      this.ctx.lineWidth = 1.5;
-      for (let i = 5; i < len; i += 15) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(i, -8);
-        this.ctx.lineTo(i, 8);
-        this.ctx.stroke();
-      }
-
-      this.ctx.restore();
-    }
-    this.ctx.restore();
-  }
-
-  drawWoodenButton(coords, text, isHovered) {
-    const [x1, y1, x2, y2] = coords;
-    const w = x2 - x1, h = y2 - y1;
-    const bg = isHovered ? this.colors.btn_bg_hover : this.colors.btn_bg;
-
-    this.ctx.fillStyle = "rgba(0,0,0,0.3)";
-    this.drawRoundRect(x1 + 3, y1 + 5, w, h, 12, "rgba(0,0,0,0.3)");
-
-    this.ctx.fillStyle = bg;
-    this.drawRoundRect(x1, y1, w, h, 12, bg);
-
-    this.ctx.strokeStyle = this.colors.btn_border;
-    this.ctx.lineWidth = 3;
-    this.drawRoundRect(x1, y1, w, h, 12, null, this.colors.btn_border, 3);
-
-    this.ctx.fillStyle = "rgba(255,255,255,0.3)";
-    this.drawRoundRect(x1 + 3, y1 + 3, w - 6, h / 2 - 3, 8, "rgba(255,255,255,0.3)");
-
-    this.ctx.fillStyle = this.colors.text_dark;
-    this.ctx.font = "bold 14px Arial, sans-serif";
-    this.ctx.textAlign = "center";
-    this.ctx.textBaseline = "middle";
-    this.ctx.fillText(text, x1 + w / 2, y1 + h / 2 + 2);
-  }
-
-  drawRoundRect(x, y, w, h, r, fill, stroke, strokeWidth) {
-    this.ctx.beginPath();
-    this.ctx.moveTo(x + r, y);
-    this.ctx.lineTo(x + w - r, y);
-    this.ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    this.ctx.lineTo(x + w, y + h - r);
-    this.ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    this.ctx.lineTo(x + r, y + h);
-    this.ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    this.ctx.lineTo(x, y + r);
-    this.ctx.quadraticCurveTo(x, y, x + r, y);
-    this.ctx.closePath();
-    if (fill) { this.ctx.fillStyle = fill; this.ctx.fill(); }
-    if (stroke) { this.ctx.strokeStyle = stroke; this.ctx.lineWidth = strokeWidth || 1; this.ctx.stroke(); }
-  }
-
-  drawVictoryScreen() {
-    const w = this.canvasW, h = this.canvasH;
-
-    this.ctx.fillStyle = `rgba(62, 39, 35, ${0.6 * this.victoryAlpha})`;
-    this.ctx.fillRect(0, 0, w, h);
-
-    if (this.victoryAlpha > 0.2) {
-      const panelW = 360, panelH = 220;
-      const px1 = w / 2 - panelW / 2, py1 = h / 2 - panelH / 2;
-
-      this.ctx.save();
-      this.ctx.translate(w/2, h/2);
-      this.ctx.scale(this.victoryAlpha, this.victoryAlpha);
-      this.ctx.translate(-w/2, -h/2);
-
-      this.ctx.fillStyle = "#FFF8E1";
-      this.drawRoundRect(px1, py1, panelW, panelH, 20, "#FFF8E1");
-      this.ctx.strokeStyle = this.colors.btn_border;
-      this.ctx.lineWidth = 4;
-      this.drawRoundRect(px1, py1, panelW, panelH, 20, null, this.colors.btn_border, 4);
-
-      this.ctx.fillStyle = this.colors.btn_border;
-      this.ctx.beginPath(); this.ctx.arc(px1 + 20, py1 + 20, 6, 0, Math.PI*2); this.ctx.fill();
-      this.ctx.beginPath(); this.ctx.arc(px1 + panelW - 20, py1 + 20, 6, 0, Math.PI*2); this.ctx.fill();
-      this.ctx.beginPath(); this.ctx.arc(px1 + 20, py1 + panelH - 20, 6, 0, Math.PI*2); this.ctx.fill();
-      this.ctx.beginPath(); this.ctx.arc(px1 + panelW - 20, py1 + panelH - 20, 6, 0, Math.PI*2); this.ctx.fill();
-
-      this.ctx.fillStyle = "#E65100";
-      this.ctx.font = "bold 36px Arial, sans-serif";
-      this.ctx.textAlign = "center";
-      this.ctx.fillText("ПОБЕДА!", w / 2, h / 2 - 30);
-
-      this.ctx.fillStyle = this.colors.text_dark;
-      this.ctx.font = "16px Arial, sans-serif";
-      this.ctx.fillText("Королевство снова связано!", w / 2, h / 2 + 10);
-
-      const btnW = 200, btnH = 45, bx1 = w / 2 - btnW / 2, by1 = h / 2 + 50;
-      this.drawWoodenButton([bx1, by1, bx1 + btnW, by1 + btnH], "НОВОЕ ПРИКЛЮЧЕНИЕ", true);
-
-      this.ctx.restore();
-    }
+      // Геометрия мира изменилась: старые кластеры и вода больше не годятся.
+      this.invalidateWorldCache();
   }
 
   draw() {
-    this.ctx.clearRect(0, 0, this.canvasW, this.canvasH);
+    const ctx = this.ctx;
 
-    this.drawTopDownWater();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    for (const [edgeKey, count] of this.logic.bridges.entries()) {
-      const [k1, k2] = edgeKey.split('-');
-      const [r1, c1] = k1.split(',').map(Number);
-      const [r2, c2] = k2.split(',').map(Number);
-      const x1 = c1 * this.cellSize + this.offset, y1 = r1 * this.cellSize + this.offset;
-      const x2 = c2 * this.cellSize + this.offset, y2 = r2 * this.cellSize + this.offset;
-      this.drawMedievalBridge(x1, y1, x2, y2, count);
-    }
+    /*
+     * Фон заливает весь холст целиком, поэтому отдельная
+     * очистка clearRect не нужна — это лишний проход по пикселям.
+     */
+    ctx.fillStyle = this.skin.sceneBackground || "#0284C7";
+    ctx.fillRect(0, 0, this.canvasW, this.canvasH);
 
+    // Мир рисуем с учётом приближения и сдвига.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, this.viewportW, this.viewportH);
+    ctx.clip();
+    ctx.translate(this.viewX, this.viewY);
+    ctx.scale(this.viewScale, this.viewScale);
+
+    /*
+      * 1. Вода — самый нижний слой.
+      *
+      * Статичная основа воды закэширована, поверх неё рисуется
+      * только лёгкая анимация ряби.
+      */
+    this.drawWater();
+
+    /*
+      * Птицы над водой — декоративный динамический слой.
+      */
+    this.drawBirds();
+
+    /*
+      * Светлячки — только для ночного скина. Рисуются до островов,
+      * поэтому часть из них прячется за берегами, как в реальности.
+      */
+    this.drawFireflies();
+
+    /*
+      * 2. Мосты и острова — статичные кластеры.
+      *
+      * Слои перерисовываются только при изменении карты.
+      * В обычном кадре это несколько drawImage вместо сотен
+      * градиентов, дуг и разбора строковых ключей.
+      */
+    this.drawWorldChunks();
+
+    /*
+      * 3. Динамическая подсветка наведения/выбора.
+      */
+    this.drawIslandHighlights();
+
+    /*
+      * Искорки над выполненными островами.
+      */
+    this.drawIslandSparkles();
+
+    /*
+      * Пыльца — самый верхний декоративный слой экспериментального
+      * скина. В остальных скинах метод сразу выходит.
+      */
+    this.drawPollen();
+
+    /*
+      * 4. Предпросмотр будущего моста.
+      *
+      * Рисуем после островов, поэтому он остаётся
+      * хорошо видимым при перетягивании.
+      */
     if (this.selectedIsland) {
-      const [r, c] = this.selectedIsland;
-      const x1 = c * this.cellSize + this.offset, y1 = r * this.cellSize + this.offset;
-      const x2 = this.lastMousePos.x, y2 = this.lastMousePos.y;
+        const [r, c] = this.selectedIsland;
 
-      this.ctx.strokeStyle = "rgba(255, 235, 59, 0.6)";
-      this.ctx.lineWidth = 4;
-      this.ctx.setLineDash([8, 6]);
-      this.ctx.lineDashOffset = -this.time * 30;
-      this.ctx.beginPath();
-      this.ctx.moveTo(x1, y1);
-      this.ctx.lineTo(x2, y2);
-      this.ctx.stroke();
-      this.ctx.setLineDash([]);
+        const x1 = c * this.cellSize + this.offset;
+        const y1 = r * this.cellSize + this.offset;
+        const x2 = this.lastMousePos.x;
+        const y2 = this.lastMousePos.y;
+
+        this.ctx.save();
+
+        /*
+          * Тень.
+          */
+        this.ctx.strokeStyle = "rgba(58, 36, 29, 0.28)";
+        this.ctx.lineWidth = 7;
+        this.ctx.lineCap = "round";
+        this.ctx.setLineDash([10, 7]);
+        this.ctx.lineDashOffset = -this.time * 30;
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(x1, y1);
+        this.ctx.lineTo(x2, y2);
+        this.ctx.stroke();
+
+        /*
+          * Основная золотистая линия.
+          */
+        this.ctx.strokeStyle = "rgba(246, 211, 150, 0.9)";
+        this.ctx.lineWidth = 3;
+        this.ctx.setLineDash([10, 7]);
+        this.ctx.lineDashOffset = -this.time * 30;
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(x1, y1);
+        this.ctx.lineTo(x2, y2);
+        this.ctx.stroke();
+
+        /*
+          * Маркер под курсором.
+          */
+        this.ctx.setLineDash([]);
+        this.ctx.fillStyle = "rgba(255, 243, 214, 0.85)";
+
+        this.ctx.beginPath();
+        this.ctx.arc(x2, y2, 4, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        this.ctx.restore();
     }
 
-    for (const [key, target] of this.logic.islands.entries()) {
-      const [r, c] = key.split(',').map(Number);
-      const cx = c * this.cellSize + this.offset, cy = r * this.cellSize + this.offset;
-      const current = this.logic.getIslandBridgesCount([r, c]);
+    /*
+      * 5. Конец мирового слоя; нижняя панель и кнопки.
+      */
+    ctx.restore();
 
-      const isHovered = this.hoveredIsland && this.hoveredIsland[0] === r && this.hoveredIsland[1] === c;
-      const isSelected = this.selectedIsland && this.selectedIsland[0] === r && this.selectedIsland[1] === c;
-
-      this.drawCartoonIsland(cx, cy, target, current, isHovered, isSelected);
-    }
+    this.drawButtonBar();
 
     this.drawWoodenButton(this.btn1Coords, "НОВАЯ КАРТА", this.btn1Hovered);
     this.drawWoodenButton(this.btn2Coords, "СБРОСИТЬ", this.btn2Hovered);
 
+    this.drawZoomControls();
+
+    /*
+      * 6. Экран победы — самый верхний слой.
+      */
     if (this.isVictoryShown) {
-      this.drawVictoryScreen();
+        if (!this.confettiStarted && this.victoryAlpha >= 1) {
+            this.startConfetti();
+        }
+
+        this.drawVictoryScreen();
+        this.drawConfetti();
     }
   }
 }
+
+Object.assign(
+  BridgesGameRenderer.prototype,
+  window.BridgesRendererParts.skinUI,
+  window.BridgesRendererParts.world,
+  window.BridgesRendererParts.view,
+  window.BridgesRendererParts.game,
+  window.BridgesRendererParts.water,
+  window.BridgesRendererParts.effects,
+  window.BridgesRendererParts.islands,
+  window.BridgesRendererParts.bridges,
+  window.BridgesRendererParts.ui
+);
+
+window.BridgesGameRenderer = BridgesGameRenderer;

@@ -12,27 +12,183 @@
 <body>
     <div class="app-wrapper">
         <header class="game-header">
-            <h1>🏰 Мосты <span class="accent">Premium</span></h1>
+            <button
+                id="skinButton"
+                class="skin-button"
+                type="button"
+                aria-haspopup="dialog"
+            >
+                <span aria-hidden="true">🎨</span>
+                <span class="skin-button-label">Скины</span>
+            </button>
+
+            <h1>🏰 Мосты</h1>
             <p class="subtitle">Соедини острова древними тропами</p>
         </header>
 
         <div class="game-container">
-            <canvas id="gameCanvas"></canvas>
+            <canvas
+                id="gameCanvas"
+                tabindex="0"
+                role="application"
+                aria-label="Игра Мосты. Соедините острова мостами так, чтобы число мостов вокруг каждого острова соответствовало указанному числу."
+                aria-describedby="gameHelp gameStatus"
+            ></canvas>
         </div>
 
-        <div class="controls-hint">
-            <span>🖱️ ЛКМ: построить/улучшить мост</span>
-            <span>🖱️ ПКМ: разрушить мост</span>
+        <p id="gameStatus" class="game-status" role="status" aria-live="polite"></p>
+
+        <div class="game-help" id="gameHelp">
+            <span>🖱️ ЛКМ / касание + перетягивание — соединить острова</span>
+            <span>🖱️ ПКМ — удалить мост</span>
+            <span>🔍 Колесо / щипок двумя пальцами — приближение</span>
+            <span>✋ Перетаскивание воды или СКМ — сдвиг карты</span>
+            <span>⌨️ + / − / 0 — масштаб</span>
+            <span>📱 На телефоне — коснитесь моста, чтобы удалить</span>
         </div>
     </div>
 
-    <script src="logic.js"></script> <!-- Без изменений -->
+    <div class="skin-modal" id="skinModal" hidden>
+        <div class="skin-backdrop" data-close-skins></div>
+
+        <div
+            class="skin-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="skinTitle"
+        >
+            <button
+                class="skin-close"
+                id="skinClose"
+                type="button"
+                aria-label="Закрыть выбор скина"
+            >×</button>
+
+            <h2 id="skinTitle">Скины</h2>
+            <p class="skin-subtitle">Выбери оформление карты</p>
+
+            <div class="skin-grid">
+                <button
+                    class="skin-card"
+                    type="button"
+                    data-skin-id="default"
+                    aria-pressed="false"
+                >
+                    <span class="skin-thumb">
+                        <canvas
+                            width="220"
+                            height="120"
+                            data-preview-skin="default"
+                            aria-hidden="true"
+                        ></canvas>
+                    </span>
+                    <span class="skin-name">Лазурные острова</span>
+                    <span class="skin-desc">Классическая светлая лагуна</span>
+                    <span class="skin-check" aria-hidden="true">✓</span>
+                </button>
+
+                <button
+                    class="skin-card"
+                    type="button"
+                    data-skin-id="night"
+                    aria-pressed="false"
+                >
+                    <span class="skin-thumb">
+                        <canvas
+                            width="220"
+                            height="120"
+                            data-preview-skin="night"
+                            aria-hidden="true"
+                        ></canvas>
+                    </span>
+                    <span class="skin-name">Лунная ночь</span>
+                    <span class="skin-desc">Тёмная вода и серебряные мосты</span>
+                    <span class="skin-check" aria-hidden="true">✓</span>
+                </button>
+
+                <button
+                    class="skin-card"
+                    type="button"
+                    data-skin-id="experimental"
+                    aria-pressed="false"
+                >
+                    <span class="skin-thumb">
+                        <canvas
+                            width="220"
+                            height="120"
+                            data-preview-skin="experimental"
+                            aria-hidden="true"
+                        ></canvas>
+                    </span>
+                    <span class="skin-name">Дикие биомы</span>
+                    <span class="skin-desc">Эксперимент: биомы и больше декора</span>
+                    <span class="skin-badge">Эксперимент</span>
+                    <span class="skin-check" aria-hidden="true">✓</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="confirm-modal" id="restartModal" hidden>
+        <div class="confirm-backdrop" data-close-restart></div>
+
+        <div
+            class="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="restartTitle"
+            aria-describedby="restartText"
+        >
+            <h2 id="restartTitle">Начать заново?</h2>
+            <p class="confirm-text" id="restartText">
+                Игра начнётся с уровня 1. Все построенные мосты и прогресс
+                кампании будут сброшены.
+            </p>
+
+            <div class="confirm-actions">
+                <button
+                    class="confirm-button confirm-button-secondary"
+                    id="restartCancel"
+                    type="button"
+                >Отмена</button>
+
+                <button
+                    class="confirm-button confirm-button-primary"
+                    id="restartConfirm"
+                    type="button"
+                >Начать заново</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="logic/core.js"></script>
+    <script src="logic/solution-checker.js"></script>
+    <script src="logic/geometry.js"></script>
+    <script src="logic/board.js"></script>
+    <script src="logic/expansion.js"></script>
+    <script src="logic/level-generator.js"></script>
+    <script src="logic.js"></script>
+    <script src="renderer/skins.js"></script>
+    <script src="renderer/world.js"></script>
+    <script src="renderer/view.js"></script>
+    <script src="renderer/game.js"></script>
+    <script src="renderer/water.js"></script>
+    <script src="renderer/effects.js"></script>
+    <script src="renderer/islands.js"></script>
+    <script src="renderer/bridges.js"></script>
+    <script src="renderer/ui.js"></script>
     <script src="renderer.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const logic = new BridgesGameLogic(7);
-            logic.generateValidLevel();
             const renderer = new BridgesGameRenderer('gameCanvas', logic);
+
+            const generated = renderer.generateNewLevel(1);
+
+            if (!generated) {
+                document.getElementById('gameStatus').textContent =
+                    'Не удалось создать уровень. Попробуйте обновить страницу.';
+            }
         });
     </script>
 </body>
