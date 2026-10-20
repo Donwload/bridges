@@ -64,6 +64,13 @@ class BridgesGameRenderer {
     this.sparkles = [];
     this.birds = [];
     this.fireflies = [];
+    this.pollen = [];
+
+    /*
+     * Дельта времени последнего кадра в секундах. Нужна эффектам,
+     * чтобы их скорость не зависела от частоты кадров.
+     */
+    this.deltaTime = 0;
 
     for (let i = 0; i < 7; i++) {
         this.birds.push({
@@ -94,6 +101,31 @@ class BridgesGameRenderer {
         });
     }
 
+    /*
+     * Пыльца экспериментального скина: нормированные позиции,
+     * поэтому она переживает изменение размеров мира.
+     */
+    const pollenColors = [
+        "rgba(253, 230, 138, 0.85)",
+        "rgba(253, 186, 116, 0.8)",
+        "rgba(255, 255, 255, 0.75)",
+        "rgba(244, 114, 182, 0.7)"
+    ];
+
+    for (let i = 0; i < 14; i++) {
+        this.pollen.push({
+            nx: Math.random(),
+            ny: Math.random(),
+            phase: Math.random() * Math.PI * 2,
+            size: 1.2 + Math.random() * 1.8,
+            alpha: 0.35 + Math.random() * 0.4,
+            swing: 8 + Math.random() * 18,
+            speed: 0.2 + Math.random() * 0.35,
+            pulse: 0.7 + Math.random() * 1.1,
+            color: pollenColors[i % pollenColors.length]
+        });
+    }
+
     // Кэш статичной части мира.
     //
     // Мир разбит на кластеры-чанки. Мосты и острова рисуются в отдельные
@@ -113,17 +145,38 @@ class BridgesGameRenderer {
 
     this.setupEvents();
     this.setupSkinUI();
+    this.setupRestartConfirm();
     this.startAnimationLoop();
   }
 
   startAnimationLoop() {
     let lastTimestamp = null;
+    let lastDrawTimestamp = 0;
     let animationFrameId = null;
 
+    /*
+     * Ограничиваем отрисовку ~60 FPS. На 144-Гц мониторах
+     * requestAnimationFrame срабатывает чаще, но лишние кадры
+     * пропускаются, экономя CPU и батарею.
+     */
+    const frameInterval = 1000 / 60;
+
     const animate = (timestamp) => {
+      // Следующий кадр планируем сразу, чтобы цикл не останавливался
+      // на пропущенном кадре.
+      animationFrameId = requestAnimationFrame(animate);
+
       if (lastTimestamp === null) {
-        lastTimestamp = timestamp;
+        lastTimestamp = timestamp - frameInterval;
       }
+
+      const elapsed = timestamp - lastDrawTimestamp;
+
+      if (elapsed < frameInterval - 1) {
+        return;
+      }
+
+      lastDrawTimestamp = timestamp - (elapsed % frameInterval);
 
       const deltaTime = Math.min(
         (timestamp - lastTimestamp) / 1000,
@@ -131,6 +184,7 @@ class BridgesGameRenderer {
       );
 
       lastTimestamp = timestamp;
+      this.deltaTime = deltaTime;
 
       this.time += deltaTime * 1.2;
 
@@ -142,8 +196,6 @@ class BridgesGameRenderer {
       }
 
       this.draw();
-
-      animationFrameId = requestAnimationFrame(animate);
     };
 
     const startAnimation = () => {
@@ -152,6 +204,7 @@ class BridgesGameRenderer {
       }
 
       lastTimestamp = null;
+      lastDrawTimestamp = 0;
       animationFrameId = requestAnimationFrame(animate);
     };
 
@@ -370,6 +423,24 @@ class BridgesGameRenderer {
               this.resetView();
           }
       });
+
+      /*
+       * При изменении размеров окна пересчитываем геометрию холста
+       * с небольшой задержкой, чтобы не делать это на каждый пиксель
+       * перетаскивания.
+       */
+      let resizeTimer = null;
+
+      window.addEventListener('resize', () => {
+          if (resizeTimer !== null) clearTimeout(resizeTimer);
+
+          resizeTimer = setTimeout(() => {
+              resizeTimer = null;
+
+              this.updateCanvasGeometry();
+              this.draw();
+          }, 120);
+      });
   }
 
   getMousePos(e) {
@@ -389,9 +460,24 @@ class BridgesGameRenderer {
       this.worldW = boardSize + boardPadding * 2;
       this.worldH = boardSize + boardPadding * 2;
 
-      // Canvas ограничен по размеру, чтобы большие карты не тормозили:
-      // на экран выводится вписанная карта, а приближение делает зум.
-      const VIEW_LIMIT = 1100;
+      /*
+       * Canvas вписываем в реально доступную ширину страницы.
+       * Так мы не рисуем больше пикселей, чем браузер показывает:
+       * на узких экранах это заметно экономит отрисовку.
+       */
+      const container = this.canvas.parentElement;
+      const cssWidth =
+          (container && container.clientWidth) ||
+          (typeof window !== "undefined" && window.innerWidth) ||
+          720;
+
+      const horizontalPadding = 22; // .game-container padding: 11px * 2
+      const availableWidth = Math.max(
+          320,
+          cssWidth - horizontalPadding
+      );
+
+      const VIEW_LIMIT = Math.min(1100, availableWidth);
       this.fitScale = Math.min(1, VIEW_LIMIT / this.worldW);
 
       this.viewportW = Math.round(this.worldW * this.fitScale);
@@ -467,9 +553,11 @@ class BridgesGameRenderer {
     const ctx = this.ctx;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.canvasW, this.canvasH);
 
-    // Фон на всю площадь, включая нижнюю панель.
+    /*
+     * Фон заливает весь холст целиком, поэтому отдельная
+     * очистка clearRect не нужна — это лишний проход по пикселям.
+     */
     ctx.fillStyle = this.skin.sceneBackground || "#0284C7";
     ctx.fillRect(0, 0, this.canvasW, this.canvasH);
 
@@ -518,6 +606,12 @@ class BridgesGameRenderer {
       * Искорки над выполненными островами.
       */
     this.drawIslandSparkles();
+
+    /*
+      * Пыльца — самый верхний декоративный слой экспериментального
+      * скина. В остальных скинах метод сразу выходит.
+      */
+    this.drawPollen();
 
     /*
       * 4. Предпросмотр будущего моста.

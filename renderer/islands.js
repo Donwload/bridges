@@ -13,6 +13,31 @@
 
   parts.islands = {
   /**
+   * Палитра острова. В экспериментальном скине каждый остров
+   * детерминированно получает один из биомов; остальные скины
+   * возвращают общую палитру.
+   */
+  getIslandBiome(cx, cy) {
+      const biomes = this.skin && this.skin.biomes;
+
+      if (
+          this.skinId !== "experimental" ||
+          !Array.isArray(biomes) ||
+          biomes.length === 0
+      ) {
+          return this.skin;
+      }
+
+      const seed = Math.abs(
+          Math.sin(cx * 12.9898 + cy * 78.233) * 43758.5453
+      );
+
+      const index = Math.floor((seed - Math.floor(seed)) * biomes.length);
+
+      return Object.assign({}, this.skin, biomes[index] || {});
+  },
+
+  /**
    * Подсветка наведения/выбора — динамический слой поверх статичного кэша.
    */
   drawIslandHighlights() {
@@ -102,13 +127,19 @@
   drawIslandDecorations(cx, cy, target, isComplete) {
       const r = 28;
       const seed = cx * 131 + cy * 37 + target * 13;
+      const palette = this.getIslandBiome(cx, cy);
+      const isExperimental = this.skinId === "experimental";
 
       const rand = (n) => {
           const x = Math.sin(seed + n * 7.3) * 9017.1;
           return x - Math.floor(x);
       };
 
-      const count = 4 + Math.floor(rand(0) * 4);
+      const count =
+          (isExperimental ? 7 : 4) +
+          Math.floor(rand(0) * (isExperimental ? 5 : 4));
+
+      const typeCount = isExperimental ? 7 : 3;
 
       this.ctx.save();
 
@@ -117,15 +148,14 @@
           const dist = r - 7 + rand(i * 2.7) * 11;
           const x = cx + Math.cos(angle) * dist;
           const y = cy - 2 + Math.sin(angle) * dist;
-          const type = Math.floor(rand(i * 3.9) * 3);
+          const type = Math.floor(rand(i * 3.9) * typeCount);
+          const flower = isComplete ? palette.flowerDone : palette.flower;
 
           if (type === 0) {
               /*
                * Маленький цветочек с травинкой.
                */
-              this.ctx.fillStyle = isComplete
-                  ? this.skin.flowerDone
-                  : this.skin.flower;
+              this.ctx.fillStyle = flower;
               this.ctx.beginPath();
               this.ctx.arc(
                   x,
@@ -155,9 +185,9 @@
               this.ctx.strokeStyle = "rgba(60, 40, 30, 0.45)";
               this.ctx.lineWidth = 0.7;
               this.ctx.stroke();
-          } else {
+          } else if (type === 2) {
               /*
-               * О piccole пеньки/кораблик из коры.
+               * Маленький пенёк из коры.
                */
               this.ctx.fillStyle = "rgba(100, 75, 60, 0.6)";
               this.ctx.fillRect(
@@ -166,6 +196,85 @@
                   2 + rand(i * 3.1) * 2,
                   2 + rand(i * 3.1) * 1.5
               );
+          } else if (type === 3) {
+              /*
+               * Гриб — деталь лугового и лесного биома.
+               */
+              this.ctx.fillStyle = "rgba(255, 248, 235, 0.92)";
+              this.ctx.fillRect(x - 0.9, y - 2.4, 1.8, 4);
+
+              this.ctx.fillStyle = flower || "#FCD34D";
+              this.ctx.beginPath();
+              this.ctx.ellipse(x, y - 3, 3.2 + rand(i * 8.2), 2, 0, Math.PI, 0);
+              this.ctx.fill();
+
+              this.ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+              this.ctx.beginPath();
+              this.ctx.arc(x - 1.1, y - 3.2, 0.6, 0, Math.PI * 2);
+              this.ctx.fill();
+          } else if (type === 4) {
+              /*
+               * Кристалл — деталь каменистого биома.
+               */
+              const crystalDark = palette.treeDark || "#4D7C0F";
+              const crystalLight = palette.treeLight || "#65A30D";
+              const crystalH = 5 + rand(i * 9.4) * 3;
+
+              this.ctx.fillStyle = crystalDark;
+              this.ctx.beginPath();
+              this.ctx.moveTo(x, y - crystalH);
+              this.ctx.lineTo(x + 2.8, y + 2);
+              this.ctx.lineTo(x - 2.8, y + 2);
+              this.ctx.closePath();
+              this.ctx.fill();
+
+              this.ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+              this.ctx.beginPath();
+              this.ctx.moveTo(x, y - crystalH);
+              this.ctx.lineTo(x + 0.9, y - 1);
+              this.ctx.lineTo(x, y + 2);
+              this.ctx.closePath();
+              this.ctx.fill();
+
+              this.ctx.strokeStyle = crystalLight;
+              this.ctx.lineWidth = 0.7;
+              this.ctx.stroke();
+          } else if (type === 5) {
+              /*
+               * Высокая трава.
+               */
+              this.ctx.strokeStyle = palette.treeLight || "#57964D";
+              this.ctx.lineWidth = 1.1;
+              this.ctx.lineCap = "round";
+
+              for (let g = -1; g <= 1; g++) {
+                  this.ctx.beginPath();
+                  this.ctx.moveTo(x + g * 1.5, y + 3);
+                  this.ctx.quadraticCurveTo(
+                      x + g * 2.3,
+                      y - 1,
+                      x + g * 3.1,
+                      y - 4 - rand(i * 6.1 + g) * 3
+                  );
+                  this.ctx.stroke();
+              }
+          } else {
+              /*
+               * Гроздь ягод.
+               */
+              this.ctx.fillStyle = flower || "#FB7185";
+
+              for (let b = 0; b < 3; b++) {
+                  this.ctx.beginPath();
+                  this.ctx.arc(
+                      x + (b - 1) * 2,
+                      y - (b % 2) * 1.6,
+                      1.1,
+                      0,
+                      Math.PI * 2
+                  );
+                  this.ctx.fill();
+              }
           }
       }
 
@@ -214,6 +323,7 @@
 
   drawCartoonIsland(cx, cy, target, current, isHovered, isSelected) {
       const radius = 28;
+      const palette = this.getIslandBiome(cx, cy);
 
       const isOverfilled = current > target;
       const isComplete = current === target;
@@ -233,8 +343,8 @@
         * 2. Земля под травой
         */
       const dirtGradient = this.ctx.createLinearGradient(cx, cy - radius, cx, cy + radius);
-      dirtGradient.addColorStop(0, this.skin.dirtTop);
-      dirtGradient.addColorStop(1, this.skin.dirtBottom);
+      dirtGradient.addColorStop(0, palette.dirtTop);
+      dirtGradient.addColorStop(1, palette.dirtBottom);
 
       this.ctx.fillStyle = dirtGradient;
       this.ctx.beginPath();
@@ -251,26 +361,26 @@
             * Переполнение — красный,
             * но не кислотный.
             */
-          grassGradient.addColorStop(0, this.skin.overA);
-          grassGradient.addColorStop(0.55, this.skin.overB);
-          grassGradient.addColorStop(1, this.skin.overC);
+          grassGradient.addColorStop(0, palette.overA);
+          grassGradient.addColorStop(0.55, palette.overB);
+          grassGradient.addColorStop(1, palette.overC);
       } else if (isComplete) {
           /*
             * Заполненный остров —
             * более светлый и сочный.
             */
-          grassGradient.addColorStop(0, this.skin.doneA);
-          grassGradient.addColorStop(0.42, this.skin.doneB);
-          grassGradient.addColorStop(0.78, this.skin.doneC);
-          grassGradient.addColorStop(1, this.skin.doneD);
+          grassGradient.addColorStop(0, palette.doneA);
+          grassGradient.addColorStop(0.42, palette.doneB);
+          grassGradient.addColorStop(0.78, palette.doneC);
+          grassGradient.addColorStop(1, palette.doneD);
       } else {
           /*
             * Обычный остров.
             */
-          grassGradient.addColorStop(0, this.skin.grassA);
-          grassGradient.addColorStop(0.45, this.skin.grassB);
-          grassGradient.addColorStop(0.78, this.skin.grassC);
-          grassGradient.addColorStop(1, this.skin.grassD);
+          grassGradient.addColorStop(0, palette.grassA);
+          grassGradient.addColorStop(0.45, palette.grassB);
+          grassGradient.addColorStop(0.78, palette.grassC);
+          grassGradient.addColorStop(1, palette.grassD);
       }
 
       this.ctx.fillStyle = grassGradient;
@@ -336,15 +446,15 @@
           /*
             * Ствол.
             */
-          this.ctx.fillStyle = this.skin.treeTrunk;
+          this.ctx.fillStyle = palette.treeTrunk;
           this.ctx.fillRect(treeX - 2, treeY + 5, 4, 10);
 
           /*
             * Нижняя часть кроны.
             */
           this.ctx.fillStyle = isComplete
-              ? this.skin.treeDoneDark
-              : this.skin.treeDark;
+              ? palette.treeDoneDark
+              : palette.treeDark;
           this.ctx.beginPath();
           this.ctx.arc(treeX, treeY + 3, 7, 0, Math.PI * 2);
           this.ctx.fill();
@@ -353,8 +463,8 @@
             * Верхняя часть кроны.
             */
           this.ctx.fillStyle = isComplete
-              ? this.skin.treeDoneLight
-              : this.skin.treeLight;
+              ? palette.treeDoneLight
+              : palette.treeLight;
           this.ctx.beginPath();
           this.ctx.arc(treeX + 3, treeY - 2, 6, 0, Math.PI * 2);
           this.ctx.fill();
@@ -362,7 +472,7 @@
           /*
             * Контур дерева.
             */
-          this.ctx.strokeStyle = this.skin.treeOutline;
+          this.ctx.strokeStyle = palette.treeOutline;
           this.ctx.lineWidth = 1.2;
           this.ctx.beginPath();
           this.ctx.arc(treeX, treeY + 3, 7, 0, Math.PI * 2);
@@ -376,13 +486,13 @@
       let outlineWidth;
 
       if (isOverfilled) {
-          outlineColor = this.skin.outlineOver;
+          outlineColor = palette.outlineOver;
           outlineWidth = 3;
       } else if (isComplete) {
-          outlineColor = this.skin.outlineDone;
+          outlineColor = palette.outlineDone;
           outlineWidth = 3;
       } else {
-          outlineColor = this.skin.outline;
+          outlineColor = palette.outline;
           outlineWidth = 2.5;
       }
 
@@ -406,7 +516,7 @@
           /*
             * Тёмная дорожка.
             */
-          this.ctx.strokeStyle = this.skin.progressTrack;
+          this.ctx.strokeStyle = palette.progressTrack;
           this.ctx.lineWidth = 5;
           this.ctx.lineCap = "round";
 
@@ -418,7 +528,7 @@
             * Заполненная часть.
             */
           if (fillRatio > 0) {
-              this.ctx.strokeStyle = this.skin.progressFill;
+              this.ctx.strokeStyle = palette.progressFill;
               this.ctx.lineWidth = 5;
               this.ctx.lineCap = "round";
 
@@ -433,7 +543,7 @@
               const dotX = cx + Math.cos(angle) * progressRadius;
               const dotY = cy - 2 + Math.sin(angle) * progressRadius;
 
-              this.ctx.fillStyle = this.skin.progressDot;
+              this.ctx.fillStyle = palette.progressDot;
               this.ctx.beginPath();
               this.ctx.arc(dotX, dotY, 2.5, 0, Math.PI * 2);
               this.ctx.fill();
@@ -489,7 +599,7 @@
           /*
             * Красное внешнее кольцо.
             */
-          this.ctx.strokeStyle = this.skin.overRing;
+          this.ctx.strokeStyle = palette.overRing;
           this.ctx.lineWidth = 4;
 
           this.ctx.beginPath();
@@ -502,7 +612,7 @@
           const badgeX = cx + 20;
           const badgeY = cy - 21;
 
-          this.ctx.fillStyle = this.skin.overBadge;
+          this.ctx.fillStyle = palette.overBadge;
           this.ctx.beginPath();
           this.ctx.arc(badgeX, badgeY, 12, 0, Math.PI * 2);
           this.ctx.fill();
@@ -544,7 +654,7 @@
         */
       if (isComplete) {
           const glow = 0.45 + 0.3 * Math.sin(this.time * 5);
-          this.ctx.shadowColor = `rgba(${this.skin.numberGlow}, ${glow})`;
+          this.ctx.shadowColor = `rgba(${palette.numberGlow}, ${glow})`;
           this.ctx.shadowBlur = 10;
       }
 

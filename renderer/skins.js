@@ -174,6 +174,152 @@ const BRIDGE_SKINS = {
       woodEnd: "rgba(2, 6, 23, 0.3)",
       bridgeGap: "rgba(15, 23, 42, 0.45)"
     }
+  },
+
+  /*
+   * Экспериментальный скин: каждый остров получает один из биомов,
+   * а декор становится разнообразнее. Он влияет только на палитру
+   * и рисуемые детали, не трогая логику и правила игры.
+   */
+  experimental: {
+    name: "Дикие биомы",
+    description: "Эксперимент: биомы и больше декора",
+    preview: "experimental",
+    colors: {
+      waterTop: "#67E8F9",
+      waterMid: "#22D3EE",
+      waterDeep: "#0E7490",
+      waterBottom: "#164E63",
+      waterSunStrong: "rgba(254, 240, 138, 0.20)",
+      waterSunSoft: "rgba(254, 240, 138, 0.03)",
+      waterDeepSoft: "rgba(8, 51, 68, 0.24)",
+      waterDeepEdge: "rgba(8, 51, 68, 0.55)",
+      waterVignette: "rgba(4, 47, 46, 0.24)",
+      wave1: "rgba(255, 255, 255, 0.14)",
+      wave2: "rgba(255, 255, 255, 0.09)",
+      birdStroke: "rgba(15, 23, 42, 0.62)",
+      birdFill: "rgba(15, 23, 42, 0.7)",
+
+      dirtTop: "#D6B36A",
+      dirtBottom: "#8A6A3A",
+      grassA: "#B7E08A",
+      grassB: "#8BCB68",
+      grassC: "#62AA56",
+      grassD: "#438542",
+      /*
+       * Заполненный остров — тёплое золото: оно читается как «решён»
+       * и перекликается с осенними и тропическими биомами.
+       */
+      doneA: "#FEF3C7",
+      doneB: "#FDE68A",
+      doneC: "#F59E0B",
+      doneD: "#B45309",
+      overA: "#F18A80",
+      overB: "#D85B53",
+      overC: "#A83E38",
+      outline: "#356B35",
+      outlineDone: "#D97706",
+      outlineOver: "#963832",
+
+      sceneBackground: "#0E7490",
+
+      treeTrunk: "#68473A",
+      treeDark: "#438447",
+      treeLight: "#57964D",
+      treeDoneDark: "#B45309",
+      treeDoneLight: "#F59E0B",
+      treeOutline: "#326B39",
+
+      progressTrack: "rgba(48, 69, 46, 0.48)",
+      progressFill: "#FDE68A",
+      progressDot: "#FFFBEB",
+      overRing: "rgba(194, 58, 51, 0.88)",
+      overBadge: "#B83B35",
+      numberGlow: "253, 230, 138",
+      flower: "#F472B6",
+      flowerDone: "#FDE047",
+
+      bridgeShadow: "rgba(45, 30, 22, 0.24)",
+      woodTop: "#C08A5A",
+      woodMid: "#A16207",
+      woodBottom: "#713F12",
+      woodHighlight: "rgba(255, 235, 205, 0.28)",
+      plankLine: "rgba(91, 57, 42, 0.65)",
+      plankLight: "rgba(255, 235, 205, 0.22)",
+      plankShadeA: "rgba(70, 43, 32, 0.08)",
+      plankShadeB: "rgba(255, 225, 190, 0.07)",
+      beam: "#5B3A1E",
+      rope: "rgba(91, 61, 45, 0.85)",
+      ropeHanger: "rgba(70, 43, 32, 0.55)",
+      nail: "#6E4736",
+      woodTopLight: "rgba(255, 235, 205, 0.32)",
+      woodEnd: "rgba(65, 40, 30, 0.22)",
+      bridgeGap: "rgba(55, 39, 31, 0.30)",
+
+      /*
+       * Частичные палитры биомов. `getIslandBiome(cx, cy)`
+       * накладывает одну из них поверх базовой палитры,
+       * поэтому острова выглядят по-разному на одной карте.
+       */
+      biomes: [
+        {
+          grassA: "#B7E08A",
+          grassB: "#8BCB68",
+          grassC: "#62AA56",
+          grassD: "#438542",
+          dirtTop: "#8B6253",
+          dirtBottom: "#4D342C",
+          treeTrunk: "#68473A",
+          treeDark: "#438447",
+          treeLight: "#57964D",
+          treeOutline: "#326B39",
+          outline: "#356B35",
+          flower: "#FCD34D"
+        },
+        {
+          grassA: "#FCD9A8",
+          grassB: "#F6B26B",
+          grassC: "#E07A3F",
+          grassD: "#A84E2A",
+          dirtTop: "#8B5A3C",
+          dirtBottom: "#4A2F22",
+          treeTrunk: "#6B4226",
+          treeDark: "#C2410C",
+          treeLight: "#F59E0B",
+          treeOutline: "#7C2D12",
+          outline: "#8A3B1E",
+          flower: "#FB7185"
+        },
+        {
+          grassA: "#A7F3D0",
+          grassB: "#5EEAD4",
+          grassC: "#14B8A6",
+          grassD: "#0F766E",
+          dirtTop: "#D6B36A",
+          dirtBottom: "#8A6A3A",
+          treeTrunk: "#7C5A3A",
+          treeDark: "#0D9488",
+          treeLight: "#2DD4BF",
+          treeOutline: "#115E59",
+          outline: "#0F766E",
+          flower: "#F472B6"
+        },
+        {
+          grassA: "#E5E7EB",
+          grassB: "#C7CDD3",
+          grassC: "#9CA3AF",
+          grassD: "#6B7280",
+          dirtTop: "#78716C",
+          dirtBottom: "#44403C",
+          treeTrunk: "#57534E",
+          treeDark: "#4D7C0F",
+          treeLight: "#65A30D",
+          treeOutline: "#3F6212",
+          outline: "#475569",
+          flower: "#93C5FD"
+        }
+      ]
+    }
   }
 };
 
@@ -272,6 +418,18 @@ const SKIN_STORAGE_KEY = "bridges-skin";
         this.setSkin(button.dataset.skinId);
         close();
       });
+
+      // Название и описание берём из BRIDGE_SKINS, чтобы не
+      // дублировать их в разметке.
+      const skin = BRIDGE_SKINS[button.dataset.skinId];
+
+      if (!skin) return;
+
+      const nameElement = button.querySelector(".skin-name");
+      const descriptionElement = button.querySelector(".skin-desc");
+
+      if (nameElement) nameElement.textContent = skin.name;
+      if (descriptionElement) descriptionElement.textContent = skin.description;
     });
 
     this.updateSkinUI();
@@ -326,6 +484,7 @@ const SKIN_STORAGE_KEY = "bridges-skin";
     ctx.fillRect(0, 0, w, h);
 
     const isNight = skin.preview === "night";
+    const isExperimental = skin.preview === "experimental";
 
     /*
      * Солнце или луна.
@@ -333,10 +492,14 @@ const SKIN_STORAGE_KEY = "bridges-skin";
     ctx.save();
     ctx.fillStyle = isNight
       ? "rgba(226, 232, 240, 0.88)"
-      : "rgba(253, 224, 71, 0.9)";
+      : isExperimental
+        ? "rgba(251, 146, 60, 0.95)"
+        : "rgba(253, 224, 71, 0.9)";
     ctx.shadowColor = isNight
       ? "rgba(226, 232, 240, 0.5)"
-      : "rgba(253, 224, 71, 0.6)";
+      : isExperimental
+        ? "rgba(251, 146, 60, 0.6)"
+        : "rgba(253, 224, 71, 0.6)";
     ctx.shadowBlur = 18;
     ctx.beginPath();
     ctx.arc(w * 0.78, h * 0.24, isNight ? 10 : 13, 0, Math.PI * 2);
@@ -392,10 +555,21 @@ const SKIN_STORAGE_KEY = "bridges-skin";
     ctx.stroke();
 
     /*
-     * Два острова с числами.
+     * Два острова с числами. В экспериментальном скине показываем
+     * два разных биома, чтобы была видна вариативность.
      */
-    const drawIsland = (x, y, radius) => {
-      ctx.fillStyle = c.dirtBottom;
+    const biomes = isExperimental && Array.isArray(c.biomes) ? c.biomes : null;
+
+    const paletteA = biomes
+      ? Object.assign({}, c, biomes[0])
+      : c;
+
+    const paletteB = biomes && biomes[1]
+      ? Object.assign({}, c, biomes[1])
+      : c;
+
+    const drawIsland = (x, y, radius, palette) => {
+      ctx.fillStyle = palette.dirtBottom;
       ctx.beginPath();
       ctx.arc(x, y + 3, radius, 0, Math.PI * 2);
       ctx.fill();
@@ -409,16 +583,16 @@ const SKIN_STORAGE_KEY = "bridges-skin";
         radius
       );
 
-      grass.addColorStop(0, c.grassA);
-      grass.addColorStop(0.6, c.grassB);
-      grass.addColorStop(1, c.grassD);
+      grass.addColorStop(0, palette.grassA);
+      grass.addColorStop(0.6, palette.grassB);
+      grass.addColorStop(1, palette.grassD);
 
       ctx.fillStyle = grass;
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.strokeStyle = c.outline;
+      ctx.strokeStyle = palette.outline;
       ctx.lineWidth = 2;
       ctx.stroke();
 
@@ -429,8 +603,72 @@ const SKIN_STORAGE_KEY = "bridges-skin";
       ctx.fillText("3", x, y + 1);
     };
 
-    drawIsland(w * 0.30, h * 0.58, 16);
-    drawIsland(w * 0.70, h * 0.58, 16);
+    drawIsland(w * 0.30, h * 0.58, 16, paletteA);
+    drawIsland(w * 0.70, h * 0.58, 16, paletteB);
+
+    /*
+     * Дополнительный декор экспериментального скина: грибы у первого
+     * острова и кристалл у второго. Небольшие детали, но карточка
+     * сразу читается как «другой скин».
+     */
+    if (isExperimental) {
+      const leftX = w * 0.30;
+      const rightX = w * 0.70;
+      const groundY = h * 0.58 + 14;
+
+      ctx.save();
+
+      // Гриб: ножка и шляпка.
+      const drawMushroom = (mx, my) => {
+        ctx.fillStyle = "rgba(255, 248, 235, 0.95)";
+        ctx.fillRect(mx - 1, my - 4, 2, 5);
+
+        ctx.fillStyle = paletteA.flower || "#FCD34D";
+        ctx.beginPath();
+        ctx.ellipse(mx, my - 5, 4, 2.4, 0, Math.PI, 0);
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+        ctx.beginPath();
+        ctx.arc(mx - 1.4, my - 5.4, 0.7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(mx + 1.6, my - 5.8, 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      };
+
+      drawMushroom(leftX - 20, groundY);
+      drawMushroom(leftX + 21, groundY - 1);
+
+      // Кристалл: светящийся треугольник.
+      ctx.fillStyle = paletteB.treeLight || "#F59E0B";
+      ctx.beginPath();
+      ctx.moveTo(rightX + 19, groundY - 10);
+      ctx.lineTo(rightX + 23, groundY);
+      ctx.lineTo(rightX + 15, groundY);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+      ctx.beginPath();
+      ctx.moveTo(rightX + 19, groundY - 10);
+      ctx.lineTo(rightX + 21, groundY - 4);
+      ctx.lineTo(rightX + 19, groundY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Пара осенних листьев над вторым островом.
+      ctx.fillStyle = paletteB.grassC || "#E07A3F";
+      ctx.beginPath();
+      ctx.ellipse(rightX - 9, groundY - 16, 2.4, 1.2, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(rightX + 6, groundY - 19, 2, 1, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
   }
   };
 })();

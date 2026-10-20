@@ -19,6 +19,12 @@
   drawBirds() {
       if (!this.worldW || !this.worldH) return;
 
+      /*
+       * Скорость не должна зависеть от частоты кадров:
+       * при 144 Гц птицы не летят в 2.4 раза быстрее, чем при 60 Гц.
+       */
+      const step = (this.deltaTime || 1 / 60) * 60;
+
       this.ctx.save();
 
       this.ctx.fillStyle = this.skin.birdFill;
@@ -27,9 +33,9 @@
       this.ctx.lineJoin = "round";
 
       for (const b of this.birds) {
-          b.x += b.vx;
-          b.y += b.vy;
-          b.flap += 0.3;
+          b.x += b.vx * step;
+          b.y += b.vy * step;
+          b.flap += 0.3 * step;
 
           if (b.x > this.worldW + 60) {
               b.x = -60;
@@ -157,15 +163,71 @@
   },
 
   /**
+   * Пыльца и мелкие листья экспериментального скина.
+   * Очень лёгкий декоративный слой, живёт только в этом скине.
+   */
+  drawPollen() {
+      if (this.skinId !== "experimental") return;
+      if (!this.worldW || !this.worldH) return;
+      if (!this.pollen || this.pollen.length === 0) return;
+
+      this.ctx.save();
+
+      for (const p of this.pollen) {
+          const x =
+              p.nx * this.worldW +
+              Math.sin(this.time * p.speed + p.phase) * p.swing;
+
+          const y =
+              p.ny * this.worldH +
+              Math.cos(this.time * p.speed * 0.7 + p.phase * 1.3) *
+                  p.swing *
+                  0.6;
+
+          const pulse = 0.5 + 0.5 * Math.sin(this.time * p.pulse + p.phase);
+
+          this.ctx.globalAlpha = Math.max(
+              0,
+              p.alpha * (0.35 + 0.65 * pulse)
+          );
+          this.ctx.fillStyle = p.color;
+          this.ctx.beginPath();
+          this.ctx.ellipse(
+              x,
+              y,
+              p.size,
+              p.size * 0.55,
+              this.time * 0.4 + p.phase,
+              0,
+              Math.PI * 2
+          );
+          this.ctx.fill();
+      }
+
+      this.ctx.globalAlpha = 1;
+      this.ctx.restore();
+  },
+
+  /**
    * Мелкие искорки над выполненными островами.
    */
   drawIslandSparkles() {
-      const islands = Array.from(this.logic.islands.keys());
+      if (this.logic.islands.size === 0) return;
 
-      if (islands.length === 0) return;
-
+      /*
+       * Резервуарная выборка прямо по Map: не создаём массив ключей
+       * каждый кадр, но по-прежнему выбираем случайный остров.
+       */
       if (Math.random() < 0.1) {
-          const key = islands[Math.floor(Math.random() * islands.length)];
+          let key = null;
+          let seen = 0;
+
+          for (const islandKey of this.logic.islands.keys()) {
+              seen++;
+
+              if (Math.random() < 1 / seen) key = islandKey;
+          }
+
           const [r, c] = key.split(",").map(Number);
 
           const current = this.logic.getIslandBridgesCount([r, c]);
@@ -190,12 +252,14 @@
       this.ctx.save();
       this.ctx.fillStyle = "#FDE047";
 
+      const step = (this.deltaTime || 1 / 60) * 60;
+
       for (let i = this.sparkles.length - 1; i >= 0; i--) {
           const s = this.sparkles[i];
 
-          s.x += s.vx;
-          s.y += s.vy;
-          s.life++;
+          s.x += s.vx * step;
+          s.y += s.vy * step;
+          s.life += step;
 
           const t = s.life / s.maxLife;
 
@@ -249,14 +313,16 @@
   drawConfetti() {
       this.ctx.save();
 
+      const step = (this.deltaTime || 1 / 60) * 60;
+
       for (let i = this.confetti.length - 1; i >= 0; i--) {
           const p = this.confetti[i];
 
-          p.x += p.vx;
-          p.y += p.vy;
-          p.vy += p.gravity;
-          p.rot += p.vr;
-          p.life++;
+          p.x += p.vx * step;
+          p.y += p.vy * step;
+          p.vy += p.gravity * step;
+          p.rot += p.vr * step;
+          p.life += step;
 
           const t = p.life / p.maxLife;
 

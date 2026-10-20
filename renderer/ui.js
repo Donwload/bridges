@@ -493,6 +493,69 @@
           this.zoomResetRect.y + this.zoomResetRect.h + 6
       );
       ctx.restore();
+  },
+
+  /**
+   * Диалог подтверждения полного перезапуска игры.
+   */
+  setupRestartConfirm() {
+      this.restartModal = document.getElementById("restartModal");
+      this.restartConfirmButton = document.getElementById("restartConfirm");
+      this.restartCancelButton = document.getElementById("restartCancel");
+
+      if (!this.restartModal) return;
+
+      const close = () => this.closeRestartConfirm();
+
+      this.restartCancelButton?.addEventListener("click", close);
+
+      this.restartConfirmButton?.addEventListener("click", () => {
+          this.closeRestartConfirm();
+          this.restartGame();
+      });
+
+      this.restartModal
+          .querySelectorAll("[data-close-restart]")
+          .forEach((element) => element.addEventListener("click", close));
+
+      document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && !this.restartModal.hidden) {
+              close();
+          }
+      });
+  },
+
+  openRestartConfirm() {
+      if (!this.restartModal) {
+          // Страховка, если разметка диалога не загрузилась.
+          if (
+              window.confirm(
+                  "Начать игру заново? Прогресс кампании будет сброшен."
+              )
+          ) {
+              this.restartGame();
+          }
+
+          return;
+      }
+
+      this.selectedIsland = null;
+      this.hoveredIsland = null;
+
+      this.restartModal.hidden = false;
+      document.body.classList.add("confirm-modal-open");
+
+      // Безопасное действие по умолчанию — «Отмена».
+      this.restartCancelButton?.focus();
+  },
+
+  closeRestartConfirm() {
+      if (!this.restartModal || this.restartModal.hidden) return;
+
+      this.restartModal.hidden = true;
+      document.body.classList.remove("confirm-modal-open");
+
+      this.canvas?.focus();
   }
   };
 })();

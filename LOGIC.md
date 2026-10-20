@@ -9,14 +9,24 @@
 
 | Файл | Назначение |
 | --- | --- |
-| `index.html` | Подключает `logic/solution-checker.js`, `logic.js`, `renderer.js`. |
-| `logic.js` | Состояние игры, `BridgeStore`, генератор уровня, расширение карты, победа. |
+| `index.html` | Подключает модули `logic/`, `logic.js`, `renderer/`, `renderer.js`. |
+| `logic.js` | Главный класс `BridgesGameLogic`: конструктор и сборка модулей. |
+| `logic/core.js` | Время (`gameNow`), разбор ключей, ограничения и `BridgeStore`. |
 | `logic/solution-checker.js` | Точный солвер и проверка единственности решения. |
-| `renderer.js` | Отрисовка через чанки, ввод, анимация, HUD. |
+| `logic/geometry.js` | Ключи рёбер, разбор путей и проверка пересечений. |
+| `logic/board.js` | Мосты, связность и проверка победы. |
+| `logic/expansion.js` | Расширение карты после победы. |
+| `logic/level-generator.js` | Генератор нового уровня. |
+| `renderer.js` | Главный класс рендерера: конструктор, игровой цикл, ввод. |
+| `renderer/*.js` | Отрисовка через чанки, вода, острова, мосты, эффекты, скины, HUD. |
 | `tests/logic.test.cjs` | Регрессионные тесты логики и солвера. |
 
-`logic/level-generator.js` — старый неиспользуемый фрагмент. Он не подключён
-к странице; актуальный генератор находится в `logic.js`.
+Логика собрана так же, как рендерер: `logic.js` объявляет класс
+`BridgesGameLogic`, а модули из `logic/` — классические script-модули,
+которые добавляют методы к его прототипу. Общие примитивы публикуются в
+`globalThis.BridgesLogicCore`, части — в `globalThis.BridgesLogicParts`.
+Это сохраняет прямой запуск `index.html` без сборщика и ES-модулей.
+Порядок подключения: `core.js` → `solution-checker.js` → части → `logic.js`.
 
 ## 2. Модель данных
 

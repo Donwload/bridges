@@ -4,20 +4,26 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
-const checkerSource = fs.readFileSync(
-  path.join(__dirname, '..', 'logic', 'solution-checker.js'),
-  'utf8'
-);
+const LOGIC_FILES = [
+  'logic/core.js',
+  'logic/solution-checker.js',
+  'logic/geometry.js',
+  'logic/board.js',
+  'logic/expansion.js',
+  'logic/level-generator.js',
+  'logic.js'
+];
 
-const logicSource = fs.readFileSync(
-  path.join(__dirname, '..', 'logic.js'),
-  'utf8'
-);
+const logicSource = LOGIC_FILES
+  .map((file) =>
+    fs.readFileSync(path.join(__dirname, '..', file), 'utf8')
+  )
+  .join('\n');
 
 const context = vm.createContext({});
 
 vm.runInContext(
-  checkerSource + '\n' + logicSource +
+  logicSource +
     '\nthis.SolutionChecker = SolutionChecker;' +
     '\nthis.BridgesGameLogic = BridgesGameLogic;',
   context

@@ -2,19 +2,12 @@
     --wood-900: #3a241d;
     --wood-800: #4b3027;
     --wood-700: #624238;
-    --wood-500: #8b6253;
-
-    --cream-50: #fffdf7;
-    --cream-100: #fff8e8;
-    --cream-200: #f5e7c8;
 
     --water-300: #7dd3fc;
     --water-400: #38bdf8;
     --water-500: #0ea5e9;
-    --water-600: #0284c7;
 
     --gold-300: #fcd34d;
-    --gold-400: #fbbf24;
     --gold-500: #f59e0b;
 
     --text-main: #3b2923;
@@ -309,7 +302,7 @@ canvas:focus-visible {
     color: var(--gold-500);
 }
 
-.game-status:not(:empty):not(.status-info) {
+.game-status:not(:empty) {
     color: #713f12;
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
 }
@@ -773,45 +766,10 @@ canvas:focus-visible {
     display: flex;
 }
 
-.skin-card.is-locked {
-    cursor: not-allowed;
-
-    opacity: 0.72;
-
-    filter: saturate(0.5);
-}
-
-.skin-card.is-locked:hover {
-    transform: none;
-
-    border-color: rgba(98, 66, 56, 0.22);
-
-    box-shadow: none;
-}
-
-.skin-thumb-locked {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    background:
-        repeating-linear-gradient(
-            45deg,
-            rgba(98, 66, 56, 0.12) 0 10px,
-            rgba(98, 66, 56, 0.06) 10px 20px
-        );
-}
-
-.skin-placeholder {
-    color: rgba(98, 66, 56, 0.45);
-
-    font: 700 34px/1 "Fredoka", sans-serif;
-}
-
 .skin-badge {
     position: absolute;
     top: 16px;
-    right: 16px;
+    left: 16px;
 
     padding: 3px 8px;
 
@@ -847,6 +805,153 @@ body.skin-modal-open {
 }
 
 
+/* =========================================================
+   CONFIRM DIALOG
+   ========================================================= */
+
+.confirm-modal[hidden] {
+    display: none;
+}
+
+.confirm-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 20px;
+}
+
+.confirm-backdrop {
+    position: absolute;
+    inset: 0;
+
+    background: rgba(18, 12, 10, 0.55);
+
+    backdrop-filter: blur(5px);
+
+    animation: skin-fade 180ms ease-out;
+}
+
+.confirm-dialog {
+    position: relative;
+
+    width: min(100%, 430px);
+
+    padding: 28px 28px 24px;
+
+    border: 2px solid rgba(98, 66, 56, 0.4);
+    border-radius: 24px;
+
+    background:
+        linear-gradient(
+            180deg,
+            #fffdf7 0%,
+            #fff8e8 55%,
+            #f5e7c8 100%
+        );
+
+    box-shadow:
+        0 30px 70px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.55) inset;
+
+    animation: skin-pop 220ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.confirm-dialog h2 {
+    margin: 0;
+
+    color: var(--wood-900);
+
+    font: 700 clamp(1.4rem, 3.6vw, 1.8rem)/1.1 "Fredoka", sans-serif;
+}
+
+.confirm-text {
+    margin: 10px 0 0;
+
+    color: var(--text-muted);
+
+    font: 700 13.5px/1.5 "Nunito", sans-serif;
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+
+    margin-top: 22px;
+}
+
+.confirm-button {
+    min-width: 120px;
+
+    padding: 11px 18px;
+
+    border: 2px solid transparent;
+    border-radius: 12px;
+
+    font: 700 13.5px/1 "Nunito", sans-serif;
+
+    cursor: pointer;
+
+    transition:
+        transform 150ms ease,
+        box-shadow 150ms ease,
+        background 150ms ease;
+}
+
+.confirm-button:hover {
+    transform: translateY(-2px);
+}
+
+.confirm-button:active {
+    transform: translateY(0);
+}
+
+.confirm-button:focus-visible {
+    outline: 3px solid var(--gold-300);
+    outline-offset: 2px;
+}
+
+.confirm-button-secondary {
+    border-color: rgba(98, 66, 56, 0.28);
+
+    background: rgba(255, 255, 255, 0.6);
+
+    color: var(--wood-800);
+}
+
+.confirm-button-secondary:hover {
+    background: #fff;
+}
+
+.confirm-button-primary {
+    border-color: rgba(120, 53, 15, 0.55);
+
+    background:
+        linear-gradient(
+            180deg,
+            #c2410c 0%,
+            #9a3412 100%
+        );
+
+    color: #fff7ed;
+
+    box-shadow: 0 8px 18px rgba(154, 52, 18, 0.28);
+}
+
+.confirm-button-primary:hover {
+    box-shadow: 0 12px 24px rgba(154, 52, 18, 0.36);
+}
+
+body.confirm-modal-open {
+    overflow: hidden;
+}
+
+
 /* ---------- night theme ---------- */
 
 body[data-skin="night"] {
@@ -860,11 +965,6 @@ body[data-skin="night"] {
     --wood-900: #0f172a;
     --wood-800: #1e293b;
     --wood-700: #334155;
-    --wood-500: #64748b;
-
-    --cream-50: #1e293b;
-    --cream-100: #0f172a;
-    --cream-200: #334155;
 
     --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.45);
     --shadow-card: 0 20px 45px rgba(0, 0, 0, 0.55);
@@ -951,14 +1051,71 @@ body[data-skin="night"] .skin-close {
     border-color: rgba(148, 163, 184, 0.3);
 }
 
-body[data-skin="night"] .skin-placeholder {
-    color: rgba(226, 232, 240, 0.4);
-}
-
 body[data-skin="night"] .skin-badge {
     background: rgba(148, 163, 184, 0.15);
 
     color: #cbd5e1;
+}
+
+body[data-skin="night"] .confirm-dialog {
+    background:
+        linear-gradient(
+            180deg,
+            #1e293b 0%,
+            #0f172a 100%
+        );
+
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+body[data-skin="night"] .confirm-dialog h2 {
+    color: #f8fafc;
+}
+
+body[data-skin="night"] .confirm-text {
+    color: #cbd5e1;
+}
+
+body[data-skin="night"] .confirm-button-secondary {
+    background: rgba(30, 41, 59, 0.8);
+
+    color: #e2e8f0;
+
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+body[data-skin="night"] .confirm-button-secondary:hover {
+    background: rgba(51, 65, 85, 0.95);
+}
+
+
+/* ---------- experimental theme ---------- */
+
+body[data-skin="experimental"] {
+    --water-300: #5eead4;
+    --water-400: #14b8a6;
+    --water-500: #0f766e;
+}
+
+body[data-skin="experimental"] .game-header {
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255, 251, 235, 0.97),
+            rgba(254, 243, 199, 0.93)
+        );
+
+    border-color: rgba(180, 83, 9, 0.45);
+}
+
+body[data-skin="experimental"] .game-header h1 {
+    text-shadow: 0 2px 0 rgba(180, 83, 9, 0.18);
+}
+
+body[data-skin="experimental"] .skin-badge {
+    background: rgba(217, 119, 6, 0.16);
+
+    color: #9a3412;
 }
 
 
@@ -976,6 +1133,12 @@ body[data-skin="night"] .skin-badge {
 
     .skin-dialog {
         padding: 22px 16px 18px;
+
+        border-radius: 20px;
+    }
+
+    .confirm-dialog {
+        padding: 22px 18px 18px;
 
         border-radius: 20px;
     }
@@ -1012,7 +1175,8 @@ body[data-skin="night"] .skin-badge {
 
     .skin-badge {
         top: 10px;
-        right: 10px;
+        right: auto;
+        left: 10px;
     }
 }
 

@@ -107,23 +107,66 @@
                 </button>
 
                 <button
-                    class="skin-card is-locked"
+                    class="skin-card"
                     type="button"
-                    disabled
-                    aria-disabled="true"
+                    data-skin-id="experimental"
+                    aria-pressed="false"
                 >
-                    <span class="skin-thumb skin-thumb-locked">
-                        <span class="skin-placeholder">?</span>
+                    <span class="skin-thumb">
+                        <canvas
+                            width="220"
+                            height="120"
+                            data-preview-skin="experimental"
+                            aria-hidden="true"
+                        ></canvas>
                     </span>
-                    <span class="skin-name">Скоро</span>
-                    <span class="skin-desc">Третий скин в разработке</span>
-                    <span class="skin-badge">Заглушка</span>
+                    <span class="skin-name">Дикие биомы</span>
+                    <span class="skin-desc">Эксперимент: биомы и больше декора</span>
+                    <span class="skin-badge">Эксперимент</span>
+                    <span class="skin-check" aria-hidden="true">✓</span>
                 </button>
             </div>
         </div>
     </div>
 
+    <div class="confirm-modal" id="restartModal" hidden>
+        <div class="confirm-backdrop" data-close-restart></div>
+
+        <div
+            class="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="restartTitle"
+            aria-describedby="restartText"
+        >
+            <h2 id="restartTitle">Начать заново?</h2>
+            <p class="confirm-text" id="restartText">
+                Игра начнётся с уровня 1. Все построенные мосты и прогресс
+                кампании будут сброшены.
+            </p>
+
+            <div class="confirm-actions">
+                <button
+                    class="confirm-button confirm-button-secondary"
+                    id="restartCancel"
+                    type="button"
+                >Отмена</button>
+
+                <button
+                    class="confirm-button confirm-button-primary"
+                    id="restartConfirm"
+                    type="button"
+                >Начать заново</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="logic/core.js"></script>
     <script src="logic/solution-checker.js"></script>
+    <script src="logic/geometry.js"></script>
+    <script src="logic/board.js"></script>
+    <script src="logic/expansion.js"></script>
+    <script src="logic/level-generator.js"></script>
     <script src="logic.js"></script>
     <script src="renderer/skins.js"></script>
     <script src="renderer/world.js"></script>

@@ -1,7 +1,30 @@
+/*
+ * Генератор нового уровня.
+ *
+ * Классический script-модуль: он добавляет методы к прототипу
+ * BridgesGameLogic. Такой формат сохраняет загрузку без сборщика
+ * и не меняет поведение игры.
+ */
+(function () {
+  "use strict";
+
+  const parts = (globalThis.BridgesLogicParts =
+    globalThis.BridgesLogicParts || {});
+
+  const { gameNow, MAX_ISLAND_TARGET } =
+    globalThis.BridgesLogicCore;
+
+  parts.generator = {
   generateValidLevel(options = {}) {
     const minIslands = options.minIslands ?? 8;
     const maxIslands = options.maxIslands ?? 11;
     const gridSize = options.gridSize ?? this.gridSize;
+
+    // Вероятность моста кратности > 1. Растёт вместе со сложностью.
+    const doubleChance = Math.max(
+      0,
+      Math.min(1, options.doubleChance ?? 0.5)
+    );
 
     const previousGridSize = this.gridSize;
 
@@ -17,10 +40,10 @@
     while (attempts < 200) {
       attempts++;
 
-      const attemptStart = performance.now();
+      const attemptStart = gameNow();
 
-      const islandCount = 
-        minIslands + 
+      const islandCount =
+        minIslands +
         Math.floor(Math.random() * (maxIslands - minIslands + 1));
       const placedIslands = [];
 
@@ -140,15 +163,44 @@
           break;
         }
 
-        // Выбираем случайный допустимый вариант.
+        // Выбираем не случайный, а самый «пустой» вариант.
         //
-        // Поэтому карты не будут расти одинаково,
-        // но при этом мы не тратим сотни случайных
-        // попыток на заведомо невозможные координаты.
+        // Плотность считается по уже поставленным островам в квадрате
+        // 11x11 вокруг кандидата. Кандидаты с минимальной плотностью
+        // перемешиваются, поэтому карта не растёт одной прямой веткой,
+        // а постепенно заполняет свободные участки поля.
+        let bestDensity = Infinity;
+
+        for (const candidate of candidates) {
+          const [r, c] = candidate.island;
+          let density = 0;
+
+          for (const [pr, pc] of placedIslands) {
+            if (
+              Math.max(
+                Math.abs(pr - r),
+                Math.abs(pc - c)
+              ) <= 5
+            ) {
+              density++;
+            }
+          }
+
+          candidate.density = density;
+
+          if (density < bestDensity) {
+            bestDensity = density;
+          }
+        }
+
+        const pool = candidates.filter(
+          (candidate) => candidate.density === bestDensity
+        );
+
         const selected =
-          candidates[
+          pool[
             Math.floor(
-              Math.random() * candidates.length
+              Math.random() * pool.length
             )
           ];
 
@@ -196,11 +248,27 @@
 
       const solutionBridges = new Map();
 
+      // Геометрия выбранных мостов хранится рядом с Map, чтобы
+      // backtracking не разбирал ключи мостов заново на каждой проверке.
+      const solutionMetas = [];
+
       const allKeys = placedIslands.map(
         ([r, c]) => this.getKey(r, c)
       );
 
-      const treeStartTime = performance.now();
+      // Координаты островов по ключу: backtracking не разбирает
+      // строковые ключи через split() на каждом шаге.
+      const coordOf = new Map(
+        placedIslands.map(([r, c]) => [
+          this.getKey(r, c),
+          [r, c]
+        ])
+      );
+
+      // Set ключей для O(1)-проверки "между островами пусто".
+      const islandKeySet = new Set(allKeys);
+
+      const treeStartTime = gameNow();
       let treeNodes = 0;
 
       const MAX_TREE_TIME = 25;
@@ -209,14 +277,15 @@
       const buildTree = (
         connected,
         remaining,
-        bridges
+        bridges,
+        bridgeMetas
       ) => {
         treeNodes++;
 
         // Не позволяем генератору блокировать главный поток.
         if (
           treeNodes > MAX_TREE_NODES ||
-          performance.now() - treeStartTime > MAX_TREE_TIME
+          gameNow() - treeStartTime > MAX_TREE_TIME
         ) {
           return false;
         }
@@ -231,38 +300,48 @@
         // Ищем все возможные соединения:
         // подключённый остров -> ещё не подключённый остров.
         for (const connKey of connected) {
-          const [cr, cc] =
-            connKey.split(',').map(Number);
+          const i1 = coordOf.get(connKey);
+
+          if (!i1) {
+            continue;
+          }
+
+          const [cr, cc] = i1;
 
           for (const unconnKey of remaining) {
-            const [ur, uc] =
-              unconnKey.split(',').map(Number);
+            const i2 = coordOf.get(unconnKey);
+
+            if (!i2) {
+              continue;
+            }
+
+            const [ur, uc] = i2;
 
             // Только горизонтальное или вертикальное соединение.
             if (cr !== ur && cc !== uc) {
               continue;
             }
 
-            const i1 = [cr, cc];
-            const i2 = [ur, uc];
-
             // Между островами не должно быть другого острова.
             if (
               !this.isClearPath(
                 i1,
                 i2,
-                placedIslands
+                islandKeySet
               )
             ) {
               continue;
             }
 
             // Новый мост не должен пересекать уже созданные.
+            // Геометрия строится один раз и переиспользуется при выборе.
+            const meta = this.createEdgeMeta(i1, i2);
+
             if (
-              this.hasIntersection(
-                i1,
-                i2,
-                bridges
+              !meta ||
+              this.hasIntersectionWithEdges(
+                meta,
+                bridgeMetas
               )
             ) {
               continue;
@@ -272,7 +351,9 @@
               key1: connKey,
               key2: unconnKey,
               i1,
-              i2
+              i2,
+              edgeKey: meta.edgeKey,
+              meta
             });
           }
         }
@@ -310,23 +391,26 @@
 
           if (
             treeNodes > MAX_TREE_NODES ||
-            performance.now() - treeStartTime > MAX_TREE_TIME
+            gameNow() - treeStartTime > MAX_TREE_TIME
           ) {
             return false;
           }
 
           const edgeKey =
-            this.getEdgeKey(
-              candidate.i1,
-              candidate.i2
-            );
+            candidate.edgeKey;
 
-          const bridgeCount =
-            Math.random() < 0.5 ? 1 : 2;
+          const bridgeCount = this.pickBridgeCount(
+            MAX_ISLAND_TARGET,
+            doubleChance
+          );
 
           bridges.set(
             edgeKey,
             bridgeCount
+          );
+
+          bridgeMetas.push(
+            candidate.meta
           );
 
           connected.add(
@@ -341,7 +425,8 @@
             buildTree(
               connected,
               remaining,
-              bridges
+              bridges,
+              bridgeMetas
             )
           ) {
             return true;
@@ -349,6 +434,7 @@
 
           // Откат.
           bridges.delete(edgeKey);
+          bridgeMetas.pop();
 
           remaining.add(
             candidate.key2
@@ -370,16 +456,17 @@
         allKeys.slice(1)
       );
 
-      const treeStart = performance.now();
+      const treeStart = gameNow();
 
       const treeBuilt = buildTree(
         connected,
         remaining,
-        solutionBridges
+        solutionBridges,
+        solutionMetas
       );
 
       const treeTime =
-        performance.now() - treeStart;
+        gameNow() - treeStart;
 
       if (treeTime > 25) {
         console.log(
@@ -405,27 +492,25 @@
       const islandTargets = new Map();
 
       for (const [r, c] of placedIslands) {
-        const key = this.getKey(r, c);
-        let totalBridges = 0;
+        islandTargets.set(this.getKey(r, c), 0);
+      }
 
-        for (
-          const [edge, count]
-          of solutionBridges.entries()
-        ) {
-          const [k1, k2] =
-            edge.split('-');
+      // Считаем степени одним проходом по рёбрам, а не перебором
+      // "остров × все мосты" с повторным разбором ключей.
+      let valid = true;
 
-          if (
-            k1 === key ||
-            k2 === key
-          ) {
-            totalBridges += count;
-          }
-        }
+      for (const meta of solutionMetas) {
+        const count =
+          solutionBridges.get(meta.edgeKey) || 0;
 
         islandTargets.set(
-          key,
-          totalBridges
+          meta.key1,
+          islandTargets.get(meta.key1) + count
+        );
+
+        islandTargets.set(
+          meta.key2,
+          islandTargets.get(meta.key2) + count
         );
       }
 
@@ -433,15 +518,13 @@
       // Проверяем значения островов.
       // ============================================================
 
-      let valid = true;
-
       for (
         const value
         of islandTargets.values()
       ) {
         if (
           value === 0 ||
-          value > 8
+          value > MAX_ISLAND_TARGET
         ) {
           valid = false;
           break;
@@ -475,27 +558,19 @@
       // Проверяем уникальность решения.
       // ============================================================
 
-      const previousIslands =
-        this.islands;
+      const solverStart = gameNow();
 
-      const previousBridges =
-        this.bridges;
-
-      // Временно устанавливаем
-      // сгенерированную карту.
-      this.islands =
-        islandTargets;
-
-      this.bridges =
-        new Map();
-
-      const solverStart = performance.now();
-
+      // Проверяем снимок карты, не подменяя состояние игры.
+      // Это убирает восстановление this.islands/this.bridges и
+      // сопутствующие повторные пересчёты.
       const solutionCount =
-        this.solutionChecker.countSolutions(2);
+        this.solutionChecker.countSolutionsForIslands(
+          islandTargets,
+          2
+        );
 
       const solverTime =
-        performance.now() - solverStart;
+        gameNow() - solverStart;
 
       if (solverTime > 25) {
         console.log(
@@ -507,14 +582,6 @@
           }
         );
       }
-
-      // Возвращаем состояние,
-      // которое было до проверки.
-      this.islands =
-        previousIslands;
-
-      this.bridges =
-        previousBridges;
 
       // Нужна ровно одна разгадка.
       if (solutionCount !== 1) {
@@ -529,14 +596,14 @@
       this.islands =
         islandTargets;
 
-      this.bridges.clear();
+      this.ensureBridgeStore().clear();
 
       console.log(
         '[Generator] success',
         {
           attempts,
-          attemptTime: Math.round( 
-            performance.now() - attemptStart 
+          attemptTime: Math.round(
+            gameNow() - attemptStart
           ),
           rejectedByNoTree,
           rejectedByTargets,
@@ -553,6 +620,10 @@
     // Старый уровень при этом не трогаем.
     // ==============================================================
 
+    // Старую карту не трогаем и возвращаем прежний размер поля,
+    // чтобы состояние логики и отрисовки не расходилось.
+    this.gridSize = previousGridSize;
+
     console.warn(
       '[Generator] failed',
       {
@@ -566,3 +637,5 @@
 
     return false;
   }
+  };
+})();

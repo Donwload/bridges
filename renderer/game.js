@@ -131,9 +131,71 @@
     return true;
   },
 
+  /**
+   * Полный перезапуск игры: сбрасывает прогресс кампании и начинает
+   * с первого уровня. Если генерация не удалась, текущая карта
+   * остаётся нетронутой.
+   */
+  restartGame() {
+      const previousLevel = this.level;
+      const previousExpansions = this.expansionsDone;
+
+      this.level = 1;
+      this.expansionsDone = 0;
+
+      const success = this.generateNewLevel(1);
+
+      if (!success) {
+          this.level = previousLevel;
+          this.expansionsDone = previousExpansions;
+
+          if (this.statusElement) {
+              this.statusElement.textContent =
+                  "Не удалось начать заново. Текущая карта сохранена.";
+          }
+
+          return false;
+      }
+
+      this.endless = true;
+      this.isVictoryShown = false;
+      this.victoryAlpha = 0;
+      this.confettiStarted = false;
+      this.confetti.length = 0;
+      this.sparkles.length = 0;
+      this.selectedIsland = null;
+      this.hoveredIsland = null;
+      this.lastMousePos = { x: 0, y: 0 };
+
+      if (this.statusElement) {
+          this.statusElement.textContent =
+              `Игра начата заново. Уровень 1: ${this.levels[0].name} · ` +
+              `двойных связей: ${Math.round(this.getDoubleChance() * 100)}% · ` +
+              `мостов на связь: до ${this.logic.maxBridgeCount}`;
+      }
+
+      this.invalidateWorldCache();
+      this.draw();
+
+      return true;
+  },
+
   getIslandAtPos(x, y) {
       const p = this.toWorld(x, y);
       return this.logic.getIslandAtPos(p.x, p.y, this.cellSize, this.offset);
+  },
+
+  /**
+   * Дешёвое сравнение координат двух островов: без JSON.stringify,
+   * который аллоцирует строки на каждое движение курсора.
+   */
+  isSameIsland(first, second) {
+      return Boolean(
+          first &&
+          second &&
+          first[0] === second[0] &&
+          first[1] === second[1]
+      );
   },
 
   findBridgeAtPos(x, y) {
@@ -218,7 +280,7 @@
     }
 
     const island = this.getIslandAtPos(pos.x, pos.y);
-    const islandChanged = JSON.stringify(island) !== JSON.stringify(this.hoveredIsland);
+    const islandChanged = !this.isSameIsland(island, this.hoveredIsland);
     if (islandChanged) this.hoveredIsland = island;
 
     const btn = this.getBtnClicked(pos.x, pos.y);
@@ -267,10 +329,8 @@
 
     const btn = this.getBtnClicked(pos.x, pos.y);
     if (btn === 1) {
-        if (this.generateNewLevel()) {
-            this.selectedIsland = null;
-            this.hoveredIsland = null;
-        }
+        // Полный перезапуск кампании — только после подтверждения.
+        this.openRestartConfirm();
         return;
     }
 
@@ -289,7 +349,7 @@
   onMouseUp(pos) {
     if (this.selectedIsland && !this.isVictoryShown) {
       const targetIsland = this.getIslandAtPos(pos.x, pos.y);
-      if (targetIsland && JSON.stringify(targetIsland) !== JSON.stringify(this.selectedIsland)) {
+      if (targetIsland && !this.isSameIsland(targetIsland, this.selectedIsland)) {
         const added = this.logic.addBridge(
             this.selectedIsland,
             targetIsland
