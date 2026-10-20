@@ -34,6 +34,7 @@ class BridgesGameRenderer {
     this.pointers = new Map();
     this.pinch = null;
     this.hoverZoomBtn = null;
+    this.canvasRect = null;
 
     // Режим бесконечного расширения: после каждой победы карта растёт.
     this.endless = true;
@@ -444,10 +445,26 @@ class BridgesGameRenderer {
   }
 
   getMousePos(e) {
-    const rect = this.canvas.getBoundingClientRect();
+    const rect = this.getCanvasRect();
     const scaleX = this.canvas.width / rect.width;
     const scaleY = this.canvas.height / rect.height;
     return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+
+  /**
+   * Позиция холста на странице.
+   *
+   * Чтение layout на каждое событие указателя заметно дороже самой
+   * арифметики, а при перетаскивании события идут сотнями в секунду.
+   * Поэтому берём позицию один раз за кадр: draw() сбрасывает кэш,
+   * и после любого изменения разметки координаты снова верные.
+   */
+  getCanvasRect() {
+      if (!this.canvasRect) {
+          this.canvasRect = this.canvas.getBoundingClientRect();
+      }
+
+      return this.canvasRect;
   }
 
   updateCanvasGeometry() {
@@ -490,6 +507,9 @@ class BridgesGameRenderer {
 
       this.canvas.width = this.canvasW;
       this.canvas.height = this.canvasH;
+
+      // Размер холста изменился — позицию перечитываем заново.
+      this.canvasRect = null;
 
       // На небольших полях рисуем кластеры с запасом по чёткости,
       // чтобы приближение не превращало острова в мыло. На больших
@@ -551,6 +571,14 @@ class BridgesGameRenderer {
 
   draw() {
     const ctx = this.ctx;
+
+    /*
+     * Разметка могла сместиться (resize, загрузка шрифтов, диалог
+     * скинов). Сбрасываем кэш позиции холста раз в кадр: координаты
+     * указателя остаются верными, а layout читается не чаще одного
+     * раза за кадр вместо каждого события.
+     */
+    this.canvasRect = null;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 

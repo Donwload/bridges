@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Мосты 3D — каркас</title>
+<style>
+  :root { color-scheme: dark; }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #0b1622;
+    color: #e9eef5;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+
+  #stage { position: fixed; inset: 0; }
+
+  #gl {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  #gl:active { cursor: grabbing; }
+
+  #labels {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .label3d {
+    position: absolute;
+    left: 0;
+    top: 0;
+    min-width: 22px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    background: rgba(9, 18, 30, 0.72);
+    color: #ffe9b8;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: center;
+    white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+
+  .label3d.done { color: #9df0b4; }
+
+  .label3d.selected {
+    color: #12202e;
+    background: #ffe07a;
+  }
+
+  .label3d.candidate {
+    color: #d9ecff;
+    background: rgba(28, 74, 116, 0.85);
+  }
+
+  #hud {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    background: linear-gradient(180deg, rgba(8, 16, 27, 0.92), rgba(8, 16, 27, 0));
+    pointer-events: none;
+  }
+
+  #hud .brand {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #ffd98a;
+    pointer-events: auto;
+  }
+
+  #hud .status {
+    font-size: 13px;
+    color: #a8bccf;
+    margin-right: auto;
+    pointer-events: auto;
+  }
+
+  #hud button {
+    pointer-events: auto;
+    border: 1px solid rgba(140, 180, 220, 0.35);
+    background: rgba(20, 40, 62, 0.85);
+    color: #dbe8f5;
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  #hud button:hover {
+    background: rgba(34, 66, 98, 0.95);
+    border-color: rgba(160, 205, 245, 0.6);
+  }
+
+  #hint {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 14px 12px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #9fb4c8;
+    background: linear-gradient(0deg, rgba(8, 16, 27, 0.92), rgba(8, 16, 27, 0));
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #hint b { color: #d6e6f5; }
+
+  #banner {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    padding: 22px 34px;
+    border-radius: 18px;
+    background: rgba(16, 44, 34, 0.94);
+    border: 1px solid rgba(120, 220, 160, 0.5);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    transition: opacity 0.2s ease;
+  }
+
+  #banner .title {
+    font-size: 26px;
+    font-weight: 800;
+    color: #9df0b4;
+    margin-bottom: 6px;
+  }
+
+  #banner .sub { font-size: 13px; color: #b9d8c6; }
+
+  #banner button {
+    margin-top: 14px;
+    padding: 9px 20px;
+    border-radius: 10px;
+    border: 1px solid rgba(120, 220, 160, 0.55);
+    background: rgba(38, 96, 66, 0.9);
+    color: #dcffe9;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  #banner button:hover { background: rgba(52, 124, 86, 0.95); }
+
+  #banner.hidden { opacity: 0; pointer-events: none; }
+
+  /*
+   * Панель скинов: карточки с названием, описанием и цветами палитры.
+   * Названия и цвета подставляет game3d.js из renderer3d/skins.js.
+   */
+  #skin-panel {
+    position: fixed;
+    top: 58px;
+    right: 14px;
+    width: min(320px, calc(100vw - 28px));
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-radius: 14px;
+    background: rgba(12, 24, 38, 0.96);
+    border: 1px solid rgba(140, 180, 220, 0.35);
+    box-shadow: 0 18px 46px rgba(0, 0, 0, 0.55);
+    z-index: 5;
+  }
+
+  #skin-panel.hidden { display: none; }
+
+  #skin-panel .panel-title {
+    padding: 0 2px 2px;
+    font-size: 11.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #8fa6bb;
+  }
+
+  .skin-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 10px;
+    align-items: center;
+    width: 100%;
+    padding: 9px 11px;
+    border-radius: 11px;
+    border: 1px solid rgba(140, 180, 220, 0.22);
+    background: rgba(19, 36, 55, 0.75);
+    color: #dbe8f5;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .skin-card:hover {
+    background: rgba(30, 54, 80, 0.9);
+    border-color: rgba(160, 205, 245, 0.5);
+  }
+
+  .skin-card.active {
+    border-color: #ffd98a;
+    background: rgba(38, 56, 74, 0.95);
+    box-shadow: inset 0 0 0 1px rgba(255, 217, 138, 0.45);
+  }
+
+  .skin-card .skin-name { font-size: 13.5px; font-weight: 700; }
+
+  .skin-card .skin-desc {
+    grid-column: 1;
+    font-size: 11.5px;
+    color: #9fb4c8;
+  }
+
+  .skin-card .skin-swatches {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    display: flex;
+    gap: 4px;
+  }
+
+  .skin-card .skin-swatch {
+    display: block;
+    width: 12px;
+    height: 26px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.35);
+  }
+
+  #skin-panel .panel-close {
+    align-self: flex-end;
+    padding: 5px 12px;
+    border-radius: 9px;
+    border: 1px solid rgba(140, 180, 220, 0.35);
+    background: rgba(20, 40, 62, 0.85);
+    color: #dbe8f5;
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+
+  #skin-panel .panel-close:hover { background: rgba(34, 66, 98, 0.95); }
+
+  #fallback {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    text-align: center;
+    font-size: 15px;
+    color: #f0b6b6;
+    background: #140d0d;
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <div id="labels"></div>
+</div>
+
+<div id="hud">
+  <span class="brand">Мосты&nbsp;3D</span>
+  <span class="status" id="status">…</span>
+  <button id="btn-easier" type="button">Проще</button>
+  <button id="btn-harder" type="button">Сложнее</button>
+  <button id="btn-new" type="button">Новая карта</button>
+  <button id="btn-skin" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="skin-panel">Скин</button>
+  <a href="index.html"><button type="button">2D-режим</button></a>
+</div>
+
+<div id="skin-panel" class="hidden" role="dialog" aria-label="Скин сцены" aria-hidden="true">
+  <div class="panel-title">Скин сцены</div>
+
+  <button class="skin-card" type="button" data-skin-id="default">
+    <span class="skin-name">Лазурные острова</span>
+    <span class="skin-swatches">
+      <i class="skin-swatch"></i><i class="skin-swatch"></i><i class="skin-swatch"></i>
+    </span>
+    <span class="skin-desc">Классическая светлая лагуна</span>
+  </button>
+
+  <button class="skin-card" type="button" data-skin-id="night">
+    <span class="skin-name">Лунная ночь</span>
+    <span class="skin-swatches">
+      <i class="skin-swatch"></i><i class="skin-swatch"></i><i class="skin-swatch"></i>
+    </span>
+    <span class="skin-desc">Тёмная вода и серебряные мосты</span>
+  </button>
+
+  <button class="skin-card" type="button" data-skin-id="experimental">
+    <span class="skin-name">Дикие биомы</span>
+    <span class="skin-swatches">
+      <i class="skin-swatch"></i><i class="skin-swatch"></i><i class="skin-swatch"></i>
+    </span>
+    <span class="skin-desc">Эксперимент: биомы островов и пыльца</span>
+  </button>
+
+  <button class="panel-close" type="button" data-skin-close>Закрыть</button>
+</div>
+
+<div id="hint">
+  <b>ЛКМ по сфере</b> — выбрать остров · <b>клик по цветному лучу</b> — ось (X/Y/Z) ·
+  <b>клик по подсвеченной сфере</b> — поставить мост (0→1→2→0) ·
+  <b>перетаскивание</b> — поворот · <b>колесо</b> — приближение ·
+  <b>«Расширить карту»</b> после победы — следующий уровень ·
+  <b>S</b> или кнопка «Скин» — палитра и эффекты
+</div>
+
+<div id="banner" class="hidden">
+  <div class="title">Готово!</div>
+  <div class="sub" id="banner-sub">Все числа совпали, острова связаны.</div>
+  <button id="btn-expand" type="button">Расширить карту</button>
+</div>
+
+<div id="fallback">
+  Похоже, WebGL недоступен в этом браузере — 3D-каркас не запустился.
+  <br>Попробуйте другой браузер или включите аппаратное ускорение.
+</div>
+
+<script src="logic3d/spike.js"></script>
+<script src="logic3d/game.js"></script>
+<script src="renderer3d/math.js"></script>
+<script src="renderer3d/gl.js"></script>
+<script src="renderer3d/camera.js"></script>
+<script src="renderer3d/skins.js"></script>
+<script src="renderer3d/effects3d.js"></script>
+<script src="renderer3d/game3d.js"></script>
+<script>
+  (function () {
+    "use strict";
+
+    let app = null;
+
+    try {
+      app = new Bridges3DApp({
+        canvas: document.getElementById("gl"),
+        labelsEl: document.getElementById("labels"),
+        statusEl: document.getElementById("status"),
+        bannerEl: document.getElementById("banner"),
+        bannerSubEl: document.getElementById("banner-sub"),
+        skinButtonEl: document.getElementById("btn-skin"),
+        skinPanelEl: document.getElementById("skin-panel"),
+        size: 3
+      });
+    } catch (error) {
+      console.error(error);
+      document.getElementById("fallback").style.display = "flex";
+      return;
+    }
+
+    document.getElementById("btn-new").addEventListener("click", function () {
+      app.newLevel(app.size);
+    });
+
+    document.getElementById("btn-harder").addEventListener("click", function () {
+      app.newLevel(Math.min(6, app.size + 1));
+    });
+
+    document.getElementById("btn-easier").addEventListener("click", function () {
+      app.newLevel(Math.max(3, app.size - 1));
+    });
+
+    // Продолжение после победы: куб растёт, добавляются новые острова.
+    document.getElementById("btn-expand").addEventListener("click", function () {
+      app.expandLevel();
+    });
+
+    // Для отладки из консоли и будущих тестов.
+    window.app3d = app;
+  })();
+</script>
+
+</body>
+</html>

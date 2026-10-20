@@ -145,6 +145,138 @@
       );
   },
 
+  /**
+   * Видимая часть мира в мировых координатах.
+   *
+   * Отдаёт один и тот же объект, чтобы не создавать мусор в кадре,
+   * поэтому значения нужно использовать сразу после вызова.
+   */
+  getVisibleWorldRect() {
+      const rect =
+          this.visibleWorldRect ||
+          (this.visibleWorldRect = {
+              left: 0,
+              top: 0,
+              right: 0,
+              bottom: 0
+          });
+
+      if (!this.viewScale) {
+          rect.left = 0;
+          rect.top = 0;
+          rect.right = this.worldW;
+          rect.bottom = this.worldH;
+
+          return rect;
+      }
+
+      rect.left = Math.max(0, -this.viewX / this.viewScale);
+      rect.top = Math.max(0, -this.viewY / this.viewScale);
+
+      rect.right = Math.min(
+          this.worldW,
+          (this.viewportW - this.viewX) / this.viewScale
+      );
+
+      rect.bottom = Math.min(
+          this.worldH,
+          (this.viewportH - this.viewY) / this.viewScale
+      );
+
+      return rect;
+  },
+
+  /**
+   * Заранее строит кластеры вокруг видимой области.
+   *
+   * При перетаскивании и приближении в кадр попадают новые участки
+   * мира. Если собирать их кластеры в тот самый кадр, где они уже
+   * нужны, один кадр получает сразу несколько сборок и заметно
+   * подвисает. Поэтому соседние кластеры строятся заранее, но не
+   * больше `budget` пар за кадр — сборка размазывается по кадрам
+   * и не даёт пиков.
+   *
+   * Видимые кластеры здесь не строятся: их собирает сама отрисовка.
+   * За счёт этого запас не мешает обычному пути и не требует
+   * резервной отрисовки.
+   */
+  prefetchWorldChunks(margin = 1, budget = 2) {
+      const size = this.chunkSize;
+      const span = margin * size;
+
+      const visible = this.getVisibleWorldRect();
+
+      const visibleLeft = visible.left;
+      const visibleTop = visible.top;
+      const visibleRight = visible.right;
+      const visibleBottom = visible.bottom;
+
+      if (visibleRight <= visibleLeft || visibleBottom <= visibleTop) {
+          return;
+      }
+
+      const left = Math.max(0, visibleLeft - span);
+      const top = Math.max(0, visibleTop - span);
+
+      const right = Math.min(this.worldW, visibleRight + span);
+      const bottom = Math.min(this.worldH, visibleBottom + span);
+
+      const lastCol = Math.min(
+          Math.ceil(this.worldW / size) - 1,
+          Math.floor(right / size)
+      );
+
+      const lastRow = Math.min(
+          Math.ceil(this.worldH / size) - 1,
+          Math.floor(bottom / size)
+      );
+
+      const visibleFirstCol = Math.floor(visibleLeft / size);
+      const visibleLastCol = Math.floor(visibleRight / size);
+      const visibleFirstRow = Math.floor(visibleTop / size);
+      const visibleLastRow = Math.floor(visibleBottom / size);
+
+      let built = 0;
+
+      for (let row = Math.floor(top / size); row <= lastRow; row++) {
+          for (let col = Math.floor(left / size); col <= lastCol; col++) {
+              if (built >= budget) return;
+
+              // Видимое строит и рисует drawWorldChunks.
+              if (
+                  col >= visibleFirstCol &&
+                  col <= visibleLastCol &&
+                  row >= visibleFirstRow &&
+                  row <= visibleLastRow
+              ) {
+                  continue;
+              }
+
+              const key = this.getChunkKey(col, row);
+
+              if (
+                  this.bridgeChunks.has(key) &&
+                  this.islandChunks.has(key)
+              ) {
+                  continue;
+              }
+
+              const originX = col * size;
+              const originY = row * size;
+
+              const width = Math.min(size, this.worldW - originX);
+              const height = Math.min(size, this.worldH - originY);
+
+              if (width <= 0 || height <= 0) continue;
+
+              this.getBridgeChunk(col, row, width, height);
+              this.getIslandChunk(col, row, width, height);
+
+              built++;
+          }
+      }
+  },
+
   getChunkKey(col, row) {
       return `${col},${row}`;
   },
@@ -270,16 +402,16 @@
       const ctx = this.ctx;
       const size = this.chunkSize;
 
-      const left = Math.max(0, -this.viewX / this.viewScale);
-      const top = Math.max(0, -this.viewY / this.viewScale);
-      const right = Math.min(
-          this.worldW,
-          (this.viewportW - this.viewX) / this.viewScale
-      );
-      const bottom = Math.min(
-          this.worldH,
-          (this.viewportH - this.viewY) / this.viewScale
-      );
+      // Соседние кластеры готовим заранее, чтобы при сдвиге карты
+      // не собирать их в тот кадр, где они уже нужны на экране.
+      this.prefetchWorldChunks();
+
+      const visible = this.getVisibleWorldRect();
+
+      const left = visible.left;
+      const top = visible.top;
+      const right = visible.right;
+      const bottom = visible.bottom;
 
       if (right <= left || bottom <= top) return;
 

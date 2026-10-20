@@ -236,6 +236,28 @@
       const h = this.worldH;
 
       /*
+       * Воду рисуем только в видимой части мира.
+       *
+       * При приближении большая часть волн всё равно уходит за кадр,
+       * а построение путей стоит времени на каждом кадре. Запас нужен,
+       * чтобы волна не обрывалась на краю экрана.
+       */
+      const view = this.getVisibleWorldRect();
+      const waveMargin = 64;
+
+      /*
+       * Горизонтальные границы не выходят за пределы, которые рисовал
+       * прежний код: при виде «вся карта» работы становится не больше,
+       * чем раньше. Вертикальные границы волн уточняются отдельно —
+       * у каждого ряда своя сетка.
+       */
+      const viewLeft = Math.max(-40, view.left - waveMargin);
+      const viewRight = Math.min(w + 40, view.right + waveMargin);
+
+      const viewTop = view.top - waveMargin;
+      const viewBottom = view.bottom + waveMargin;
+
+      /*
       * Медленные горизонтальные ряби.
       *
       * Они двигаются достаточно медленно, чтобы вода
@@ -247,15 +269,35 @@
       const waveOffset = (this.time * 18) % waveSpacing;
 
       this.ctx.lineWidth = 1.5;
+      this.ctx.strokeStyle = this.skin.wave1;
 
-      for (let row = -waveSpacing; row < h + waveSpacing; row += waveSpacing) {
+      /*
+       * Ряды остаются на той же сетке, что и раньше, поэтому
+       * рисунок волн не смещается — просто лишнее не рисуется.
+       */
+      const waveTop = Math.max(-waveSpacing, view.top - waveMargin);
+      const waveBottom = Math.min(
+          h + waveSpacing,
+          view.bottom + waveMargin
+      );
+
+      const firstWaveRow = Math.floor(waveTop / waveSpacing) * waveSpacing;
+      const firstWaveX = -40 + 32 * Math.floor((viewLeft + 40) / 32);
+
+      for (
+          let row = firstWaveRow;
+          row <= waveBottom;
+          row += waveSpacing
+      ) {
           const y = row + waveOffset;
 
-          this.ctx.strokeStyle = this.skin.wave1;
+          if (y < waveTop || y > waveBottom) continue;
 
           this.ctx.beginPath();
 
-          for (let x = -40; x <= w + 40; x += 32) {
+          let started = false;
+
+          for (let x = firstWaveX; x <= viewRight; x += 32) {
               const wave =
                   Math.sin(
                       x * 0.035 +
@@ -263,14 +305,15 @@
                       row * 0.03
                   ) * 3;
 
-              if (x === -40) {
-                  this.ctx.moveTo(x, y + wave);
-              } else {
+              if (started) {
                   this.ctx.lineTo(x, y + wave);
+              } else {
+                  this.ctx.moveTo(x, y + wave);
+                  started = true;
               }
           }
 
-          this.ctx.stroke();
+          if (started) this.ctx.stroke();
       }
 
       /*
@@ -282,23 +325,43 @@
       this.ctx.lineWidth = 1.2;
       this.ctx.strokeStyle = this.skin.wave2;
 
-      for (let row = -waveSpacing2; row < h + waveSpacing2; row += waveSpacing2) {
+      const waveTop2 = Math.max(-waveSpacing2, view.top - waveMargin);
+      const waveBottom2 = Math.min(
+          h + waveSpacing2,
+          view.bottom + waveMargin
+      );
+
+      const firstWaveRow2 =
+          Math.floor(waveTop2 / waveSpacing2) * waveSpacing2;
+
+      const firstWaveX2 = -40 + 40 * Math.floor((viewLeft + 40) / 40);
+
+      for (
+          let row = firstWaveRow2;
+          row <= waveBottom2;
+          row += waveSpacing2
+      ) {
           const y = row + waveOffset2;
+
+          if (y < waveTop2 || y > waveBottom2) continue;
 
           this.ctx.beginPath();
 
-          for (let x = -40; x <= w + 40; x += 40) {
+          let started = false;
+
+          for (let x = firstWaveX2; x <= viewRight; x += 40) {
               const wave =
                   Math.sin(x * 0.025 - this.time * 0.9 + row * 0.02) * 2.5;
 
-              if (x === -40) {
-                  this.ctx.moveTo(x, y + wave);
-              } else {
+              if (started) {
                   this.ctx.lineTo(x, y + wave);
+              } else {
+                  this.ctx.moveTo(x, y + wave);
+                  started = true;
               }
           }
 
-          this.ctx.stroke();
+          if (started) this.ctx.stroke();
       }
 
       /*
@@ -314,6 +377,16 @@
           const cy2 = ((i * 91 + this.time * 15) % (h + 80)) - 40;
           const size = 30 + Math.sin(this.time + i) * 10;
           const alpha = 0.06 + Math.sin(this.time * 1.3 + i) * 0.03;
+
+          // Пятно целиком за кадром — не тратим на него drawImage.
+          if (
+              cx2 + size < viewLeft ||
+              cx2 - size > viewRight ||
+              cy2 + size < viewTop ||
+              cy2 - size > viewBottom
+          ) {
+              continue;
+          }
 
           this.ctx.globalAlpha = Math.max(0, alpha);
           this.ctx.drawImage(
@@ -338,6 +411,12 @@
       */
       this.ctx.save();
 
+      /*
+       * Цвет постоянный, а прозрачность меняется. Задаём её через
+       * globalAlpha, чтобы не собирать строку rgba на каждый блик.
+       */
+      this.ctx.fillStyle = "rgba(255, 255, 255, 1)";
+
       for (let i = 0; i < 12; i++) {
           const baseX = (i * 83 + 37) % w;
           const baseY = (i * 61 + 29) % h;
@@ -349,11 +428,21 @@
               baseY +
               Math.sin(this.time * 0.7 + i) * 7;
 
+          // Блик целиком за кадром — рисовать его незачем.
+          if (
+              x + 18 < viewLeft ||
+              x - 18 > viewRight ||
+              y + 18 < viewTop ||
+              y - 18 > viewBottom
+          ) {
+              continue;
+          }
+
           const alpha =
               0.10 +
               Math.sin(this.time * 1.1 + i) * 0.04;
 
-          this.ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+          this.ctx.globalAlpha = alpha;
 
           this.ctx.beginPath();
 
@@ -384,6 +473,9 @@
           this.ctx.save();
           this.ctx.globalCompositeOperation = "screen";
 
+          // Цвет один на всю дорожку, меняется только прозрачность.
+          this.ctx.fillStyle = `rgba(${starRGB}, 1)`;
+
           for (let i = 0; i < 8; i++) {
               const y =
                   startY +
@@ -402,7 +494,7 @@
                   (1 - i / 9) *
                   (0.65 + 0.35 * Math.sin(this.time * 1.4 + i * 1.2));
 
-              this.ctx.fillStyle = `rgba(${starRGB}, ${Math.max(0, alpha)})`;
+              this.ctx.globalAlpha = Math.max(0, alpha);
 
               this.ctx.beginPath();
               this.ctx.ellipse(

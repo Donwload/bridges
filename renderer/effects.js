@@ -117,6 +117,9 @@
       const baseRGB = this.skin.fireflyRGB || "253, 224, 71";
       const core = this.skin.fireflyCore || "#FEF9C3";
 
+      // Цвет гало один на всех — меняется только прозрачность.
+      const glowFill = `rgba(${baseRGB}, 1)`;
+
       this.ctx.save();
       this.ctx.globalCompositeOperation = "lighter";
 
@@ -141,12 +144,13 @@
           /*
            * Мягкое гало, затем тёплое ядро и белая точка внутри.
            */
-          this.ctx.fillStyle = `rgba(${baseRGB}, ${alpha * 0.18})`;
+          this.ctx.fillStyle = glowFill;
+          this.ctx.globalAlpha = alpha * 0.18;
           this.ctx.beginPath();
           this.ctx.arc(x, y, f.size * 3.6, 0, Math.PI * 2);
           this.ctx.fill();
 
-          this.ctx.fillStyle = `rgba(${baseRGB}, ${alpha * 0.5})`;
+          this.ctx.globalAlpha = alpha * 0.5;
           this.ctx.beginPath();
           this.ctx.arc(x, y, f.size * 1.8, 0, Math.PI * 2);
           this.ctx.fill();
