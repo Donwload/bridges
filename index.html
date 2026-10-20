@@ -12,6 +12,16 @@
 <body>
     <div class="app-wrapper">
         <header class="game-header">
+            <button
+                id="skinButton"
+                class="skin-button"
+                type="button"
+                aria-haspopup="dialog"
+            >
+                <span aria-hidden="true">🎨</span>
+                <span class="skin-button-label">Скины</span>
+            </button>
+
             <h1>🏰 Мосты</h1>
             <p class="subtitle">Соедини острова древними тропами</p>
         </header>
@@ -35,6 +45,81 @@
             <span>✋ Перетаскивание воды или СКМ — сдвиг карты</span>
             <span>⌨️ + / − / 0 — масштаб</span>
             <span>📱 На телефоне — коснитесь моста, чтобы удалить</span>
+        </div>
+    </div>
+
+    <div class="skin-modal" id="skinModal" hidden>
+        <div class="skin-backdrop" data-close-skins></div>
+
+        <div
+            class="skin-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="skinTitle"
+        >
+            <button
+                class="skin-close"
+                id="skinClose"
+                type="button"
+                aria-label="Закрыть выбор скина"
+            >×</button>
+
+            <h2 id="skinTitle">Скины</h2>
+            <p class="skin-subtitle">Выбери оформление карты</p>
+
+            <div class="skin-grid">
+                <button
+                    class="skin-card"
+                    type="button"
+                    data-skin-id="default"
+                    aria-pressed="false"
+                >
+                    <span class="skin-thumb">
+                        <canvas
+                            width="220"
+                            height="120"
+                            data-preview-skin="default"
+                            aria-hidden="true"
+                        ></canvas>
+                    </span>
+                    <span class="skin-name">Лазурные острова</span>
+                    <span class="skin-desc">Классическая светлая лагуна</span>
+                    <span class="skin-check" aria-hidden="true">✓</span>
+                </button>
+
+                <button
+                    class="skin-card"
+                    type="button"
+                    data-skin-id="night"
+                    aria-pressed="false"
+                >
+                    <span class="skin-thumb">
+                        <canvas
+                            width="220"
+                            height="120"
+                            data-preview-skin="night"
+                            aria-hidden="true"
+                        ></canvas>
+                    </span>
+                    <span class="skin-name">Лунная ночь</span>
+                    <span class="skin-desc">Тёмная вода и серебряные мосты</span>
+                    <span class="skin-check" aria-hidden="true">✓</span>
+                </button>
+
+                <button
+                    class="skin-card is-locked"
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                >
+                    <span class="skin-thumb skin-thumb-locked">
+                        <span class="skin-placeholder">?</span>
+                    </span>
+                    <span class="skin-name">Скоро</span>
+                    <span class="skin-desc">Третий скин в разработке</span>
+                    <span class="skin-badge">Заглушка</span>
+                </button>
+            </div>
         </div>
     </div>
 

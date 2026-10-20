@@ -1,3 +1,153 @@
+/*
+ * Скины — это только палитры отрисовки. Игровая логика, координаты,
+ * размеры и правила от скина не зависят.
+ */
+const BRIDGE_SKINS = {
+  default: {
+    name: "Лазурные острова",
+    description: "Классическая светлая лагуна",
+    preview: "day",
+    colors: {
+      waterTop: "#7DD3FC",
+      waterMid: "#22D3EE",
+      waterDeep: "#0891B2",
+      waterBottom: "#0369A1",
+      waterSunStrong: "rgba(253, 224, 71, 0.16)",
+      waterSunSoft: "rgba(253, 224, 71, 0.02)",
+      waterDeepSoft: "rgba(7, 72, 103, 0.22)",
+      waterDeepEdge: "rgba(7, 72, 103, 0.5)",
+      waterVignette: "rgba(0, 40, 80, 0.18)",
+      wave1: "rgba(255, 255, 255, 0.12)",
+      wave2: "rgba(255, 255, 255, 0.08)",
+      birdStroke: "rgba(35, 28, 23, 0.62)",
+      birdFill: "rgba(35, 28, 23, 0.7)",
+
+      dirtTop: "#8B6253",
+      dirtBottom: "#4D342C",
+      grassA: "#B7E08A",
+      grassB: "#8BCB68",
+      grassC: "#62AA56",
+      grassD: "#438542",
+      doneA: "#C4E89A",
+      doneB: "#91CE70",
+      doneC: "#62AA56",
+      doneD: "#438542",
+      overA: "#F18A80",
+      overB: "#D85B53",
+      overC: "#A83E38",
+      outline: "#356B35",
+      outlineDone: "#326F39",
+      outlineOver: "#963832",
+
+      treeTrunk: "#68473A",
+      treeDark: "#438447",
+      treeLight: "#57964D",
+      treeDoneDark: "#4E944B",
+      treeDoneLight: "#65A956",
+      treeOutline: "#326B39",
+
+      progressTrack: "rgba(48, 69, 46, 0.48)",
+      progressFill: "#F4D27A",
+      progressDot: "#FFF4C7",
+      overRing: "rgba(194, 58, 51, 0.88)",
+      overBadge: "#B83B35",
+      numberGlow: "253, 224, 71",
+      flower: "#FCD34D",
+      flowerDone: "#FDE047",
+
+      bridgeShadow: "rgba(45, 30, 22, 0.24)",
+      woodTop: "#B88969",
+      woodMid: "#A87558",
+      woodBottom: "#80533F",
+      woodHighlight: "rgba(225, 190, 155, 0.30)",
+      plankLine: "rgba(91, 57, 42, 0.65)",
+      plankLight: "rgba(235, 205, 170, 0.22)",
+      plankShadeA: "rgba(70, 43, 32, 0.08)",
+      plankShadeB: "rgba(255, 225, 190, 0.07)",
+      beam: "#704836",
+      rope: "rgba(91, 61, 45, 0.85)",
+      ropeHanger: "rgba(70, 43, 32, 0.55)",
+      nail: "#6E4736",
+      woodTopLight: "rgba(255, 235, 205, 0.32)",
+      woodEnd: "rgba(65, 40, 30, 0.22)",
+      bridgeGap: "rgba(55, 39, 31, 0.30)"
+    }
+  },
+
+  night: {
+    name: "Лунная ночь",
+    description: "Тёмная вода и серебряные мосты",
+    preview: "night",
+    colors: {
+      waterTop: "#312E81",
+      waterMid: "#1E3A8A",
+      waterDeep: "#0F172A",
+      waterBottom: "#020617",
+      waterSunStrong: "rgba(226, 232, 240, 0.22)",
+      waterSunSoft: "rgba(226, 232, 240, 0.04)",
+      waterDeepSoft: "rgba(2, 6, 23, 0.35)",
+      waterDeepEdge: "rgba(2, 6, 23, 0.7)",
+      waterVignette: "rgba(0, 0, 0, 0.45)",
+      wave1: "rgba(191, 219, 254, 0.18)",
+      wave2: "rgba(191, 219, 254, 0.10)",
+      birdStroke: "rgba(226, 232, 240, 0.7)",
+      birdFill: "rgba(226, 232, 240, 0.78)",
+
+      dirtTop: "#6B7280",
+      dirtBottom: "#1F2937",
+      grassA: "#A7F3D0",
+      grassB: "#6EE7B7",
+      grassC: "#10B981",
+      grassD: "#047857",
+      doneA: "#D9F99D",
+      doneB: "#A3E635",
+      doneC: "#65A30D",
+      doneD: "#3F6212",
+      overA: "#FDA4AF",
+      overB: "#F43F5E",
+      overC: "#9F1239",
+      outline: "#065F46",
+      outlineDone: "#3F6212",
+      outlineOver: "#9F1239",
+
+      treeTrunk: "#4B5563",
+      treeDark: "#047857",
+      treeLight: "#10B981",
+      treeDoneDark: "#4D7C0F",
+      treeDoneLight: "#65A30D",
+      treeOutline: "#064E3B",
+
+      progressTrack: "rgba(15, 23, 42, 0.6)",
+      progressFill: "#A7F3D0",
+      progressDot: "#ECFDF5",
+      overRing: "rgba(244, 63, 94, 0.9)",
+      overBadge: "#9F1239",
+      numberGlow: "167, 243, 208",
+      flower: "#FDE68A",
+      flowerDone: "#FEF3C7",
+
+      bridgeShadow: "rgba(2, 6, 23, 0.5)",
+      woodTop: "#9CA3AF",
+      woodMid: "#6B7280",
+      woodBottom: "#374151",
+      woodHighlight: "rgba(226, 232, 240, 0.18)",
+      plankLine: "rgba(15, 23, 42, 0.7)",
+      plankLight: "rgba(226, 232, 240, 0.14)",
+      plankShadeA: "rgba(15, 23, 42, 0.18)",
+      plankShadeB: "rgba(226, 232, 240, 0.06)",
+      beam: "#1F2937",
+      rope: "rgba(203, 213, 225, 0.85)",
+      ropeHanger: "rgba(15, 23, 42, 0.6)",
+      nail: "#111827",
+      woodTopLight: "rgba(241, 245, 249, 0.24)",
+      woodEnd: "rgba(2, 6, 23, 0.3)",
+      bridgeGap: "rgba(15, 23, 42, 0.45)"
+    }
+  }
+};
+
+const SKIN_STORAGE_KEY = "bridges-skin";
+
 class BridgesGameRenderer {
   constructor(canvasId, logic) {
     this.canvas = document.getElementById(canvasId);
@@ -74,6 +224,21 @@ class BridgesGameRenderer {
     this.time = 0;
     this.victoryAlpha = 0;
     this.lastMousePos = { x: 0, y: 0 };
+    this.confetti = [];
+    this.confettiStarted = false;
+    this.sparkles = [];
+    this.birds = [];
+
+    for (let i = 0; i < 7; i++) {
+        this.birds.push({
+            x: Math.random() * 2000 - 400,
+            y: Math.random() * 400 + 60,
+            vx: 0.6 + Math.random() * 1.2,
+            vy: (Math.random() - 0.5) * 0.4,
+            flap: Math.random() * Math.PI * 2,
+            scale: 0.8 + Math.random() * 0.7
+        });
+    }
 
     // Кэш статичной части мира.
     //
@@ -88,10 +253,261 @@ class BridgesGameRenderer {
     this.worldElements = null;
     this.waterCache = null;
 
+    this.initSkin();
+
     this.updateCanvasGeometry();
 
     this.setupEvents();
+    this.setupSkinUI();
     this.startAnimationLoop();
+  }
+
+  /**
+   * Загружает сохранённый скин. Скин влияет только на палитру отрисовки.
+   */
+  initSkin() {
+    let saved = null;
+
+    try {
+      saved = localStorage.getItem(SKIN_STORAGE_KEY);
+    } catch (error) {
+      saved = null;
+    }
+
+    const skinId = saved && BRIDGE_SKINS[saved] ? saved : "default";
+
+    this.skinId = skinId;
+    this.skin = BRIDGE_SKINS[skinId].colors;
+
+    document.body.dataset.skin = skinId;
+  }
+
+  /**
+   * Переключает скин и сбрасывает кэш мира, чтобы все чанки и вода
+   * перерисовались с новой палитрой.
+   */
+  setSkin(skinId) {
+    if (!BRIDGE_SKINS[skinId] || skinId === this.skinId) return false;
+
+    this.skinId = skinId;
+    this.skin = BRIDGE_SKINS[skinId].colors;
+
+    document.body.dataset.skin = skinId;
+
+    try {
+      localStorage.setItem(SKIN_STORAGE_KEY, skinId);
+    } catch (error) {
+      // Сохранение необязательно: игра работает и без localStorage.
+    }
+
+    this.invalidateWorldCache();
+    this.updateSkinUI();
+
+    return true;
+  }
+
+  setupSkinUI() {
+    this.skinModal = document.getElementById("skinModal");
+    this.skinButton = document.getElementById("skinButton");
+    this.skinClose = document.getElementById("skinClose");
+
+    if (!this.skinModal || !this.skinButton) return;
+
+    const open = () => {
+      this.skinModal.hidden = false;
+      document.body.classList.add("skin-modal-open");
+
+      this.updateSkinUI();
+      this.drawSkinPreviews();
+
+      this.skinClose?.focus();
+    };
+
+    const close = () => {
+      this.skinModal.hidden = true;
+      document.body.classList.remove("skin-modal-open");
+
+      this.skinButton.focus();
+    };
+
+    this.skinButton.addEventListener("click", open);
+
+    this.skinClose?.addEventListener("click", close);
+
+    this.skinModal
+      .querySelectorAll("[data-close-skins]")
+      .forEach((element) => element.addEventListener("click", close));
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !this.skinModal.hidden) {
+        close();
+      }
+    });
+
+    this.skinModal.querySelectorAll("[data-skin-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        this.setSkin(button.dataset.skinId);
+        close();
+      });
+    });
+
+    this.updateSkinUI();
+    this.drawSkinPreviews();
+  }
+
+  updateSkinUI() {
+    if (!this.skinModal) return;
+
+    this.skinModal
+      .querySelectorAll("[data-skin-id]")
+      .forEach((button) => {
+        const active = button.dataset.skinId === this.skinId;
+
+        button.classList.toggle("is-active", active);
+        button.setAttribute(
+          "aria-pressed",
+          active ? "true" : "false"
+        );
+      });
+  }
+
+  drawSkinPreviews() {
+    if (!this.skinModal) return;
+
+    this.skinModal
+      .querySelectorAll("canvas[data-preview-skin]")
+      .forEach((canvas) => {
+        const skin = BRIDGE_SKINS[canvas.dataset.previewSkin];
+
+        if (skin) this.drawSkinPreview(canvas, skin);
+      });
+  }
+
+  /**
+   * Миниатюра-«скриншот» скина для карточки выбора.
+   */
+  drawSkinPreview(canvas, skin) {
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+    const c = skin.colors;
+
+    ctx.clearRect(0, 0, w, h);
+
+    const water = ctx.createLinearGradient(0, 0, w, h);
+    water.addColorStop(0, c.waterTop);
+    water.addColorStop(0.4, c.waterMid);
+    water.addColorStop(1, c.waterDeep);
+
+    ctx.fillStyle = water;
+    ctx.fillRect(0, 0, w, h);
+
+    const isNight = skin.preview === "night";
+
+    /*
+     * Солнце или луна.
+     */
+    ctx.save();
+    ctx.fillStyle = isNight
+      ? "rgba(226, 232, 240, 0.88)"
+      : "rgba(253, 224, 71, 0.9)";
+    ctx.shadowColor = isNight
+      ? "rgba(226, 232, 240, 0.5)"
+      : "rgba(253, 224, 71, 0.6)";
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.arc(w * 0.78, h * 0.24, isNight ? 10 : 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    if (isNight) {
+      ctx.fillStyle = "rgba(15, 23, 42, 0.75)";
+      ctx.beginPath();
+      ctx.arc(w * 0.78 + 5, h * 0.24 - 3, 10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    /*
+     * Волны.
+     */
+    ctx.strokeStyle = c.wave1;
+    ctx.lineWidth = 1.2;
+
+    for (let y = h * 0.4; y < h; y += 16) {
+      ctx.beginPath();
+
+      for (let x = -10; x <= w + 10; x += 16) {
+        const yy = y + Math.sin(x * 0.08 + y) * 2;
+
+        if (x === -10) ctx.moveTo(x, yy);
+        else ctx.lineTo(x, yy);
+      }
+
+      ctx.stroke();
+    }
+
+    /*
+     * Мост между островами.
+     */
+    const by = h * 0.58;
+
+    const wood = ctx.createLinearGradient(0, by - 6, 0, by + 6);
+    wood.addColorStop(0, c.woodTop);
+    wood.addColorStop(0.5, c.woodMid);
+    wood.addColorStop(1, c.woodBottom);
+
+    ctx.fillStyle = wood;
+    ctx.fillRect(w * 0.28, by - 5, w * 0.44, 10);
+
+    ctx.strokeStyle = c.beam;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(w * 0.28, by - 5);
+    ctx.lineTo(w * 0.72, by - 5);
+    ctx.moveTo(w * 0.28, by + 5);
+    ctx.lineTo(w * 0.72, by + 5);
+    ctx.stroke();
+
+    /*
+     * Два острова с числами.
+     */
+    const drawIsland = (x, y, radius) => {
+      ctx.fillStyle = c.dirtBottom;
+      ctx.beginPath();
+      ctx.arc(x, y + 3, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      const grass = ctx.createRadialGradient(
+        x - radius * 0.35,
+        y - radius * 0.45,
+        1,
+        x,
+        y,
+        radius
+      );
+
+      grass.addColorStop(0, c.grassA);
+      grass.addColorStop(0.6, c.grassB);
+      grass.addColorStop(1, c.grassD);
+
+      ctx.fillStyle = grass;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = c.outline;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = "#FFFDF7";
+      ctx.font = `700 ${Math.round(radius * 0.9)}px "Fredoka", sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("3", x, y + 1);
+    };
+
+    drawIsland(w * 0.30, h * 0.58, 16);
+    drawIsland(w * 0.70, h * 0.58, 16);
   }
 
   startAnimationLoop() {
@@ -677,6 +1093,8 @@ class BridgesGameRenderer {
                   island.c
               ]);
 
+              const isComplete = current === island.target;
+
               this.drawCartoonIsland(
                   island.cx,
                   island.cy,
@@ -684,6 +1102,13 @@ class BridgesGameRenderer {
                   current,
                   false,
                   false
+              );
+
+              this.drawIslandDecorations(
+                  island.cx,
+                  island.cy,
+                  island.target,
+                  isComplete
               );
           }
       } finally {
@@ -1088,6 +1513,7 @@ class BridgesGameRenderer {
 
     this.isVictoryShown = false;
     this.victoryAlpha = 0;
+    this.confettiStarted = false;
 
     if (this.statusElement) {
         this.statusElement.textContent =
@@ -1236,6 +1662,7 @@ class BridgesGameRenderer {
             if (this.generateNewLevel(this.level)) {
                 this.isVictoryShown = false;
                 this.victoryAlpha = 0;
+                this.confettiStarted = false;
                 this.selectedIsland = null;
                 this.hoveredIsland = null;
             }
@@ -1343,11 +1770,43 @@ class BridgesGameRenderer {
 
       const gradient = ctx.createLinearGradient(0, 0, width, height);
 
-      gradient.addColorStop(0, "#7DD3FC");
-      gradient.addColorStop(0.45, "#38BDF8");
-      gradient.addColorStop(1, "#0284C7");
+      gradient.addColorStop(0, this.skin.waterTop);
+      gradient.addColorStop(0.30, this.skin.waterMid);
+      gradient.addColorStop(0.70, this.skin.waterDeep);
+      gradient.addColorStop(1, this.skin.waterBottom);
 
       ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      /*
+       * Солнечный отблеск на воде.
+       */
+      const sun = ctx.createRadialGradient(
+          width * 0.5,
+          height * 0.14,
+          0,
+          width * 0.5,
+          height * 0.14,
+          width * 0.95
+      );
+
+      sun.addColorStop(0, this.skin.waterSunStrong);
+      sun.addColorStop(0.45, this.skin.waterSunSoft);
+      sun.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+      ctx.fillStyle = sun;
+      ctx.fillRect(0, 0, width, height);
+
+      /*
+       * Глубина у краёв света.
+       */
+      const deep = ctx.createLinearGradient(0, height * 0.5, 0, height);
+
+      deep.addColorStop(0, "rgba(255, 255, 255, 0)");
+      deep.addColorStop(0.65, this.skin.waterDeepSoft);
+      deep.addColorStop(1, this.skin.waterDeepEdge);
+
+      ctx.fillStyle = deep;
       ctx.fillRect(0, 0, width, height);
 
       const glow = ctx.createRadialGradient(
@@ -1377,7 +1836,7 @@ class BridgesGameRenderer {
 
       vignette.addColorStop(0, "rgba(0,0,0,0)");
       vignette.addColorStop(0.72, "rgba(0,40,80,0.04)");
-      vignette.addColorStop(1, "rgba(0,40,80,0.18)");
+      vignette.addColorStop(1, this.skin.waterVignette);
 
       ctx.fillStyle = vignette;
       ctx.fillRect(0, 0, width, height);
@@ -1434,7 +1893,7 @@ class BridgesGameRenderer {
       for (let row = -waveSpacing; row < h + waveSpacing; row += waveSpacing) {
           const y = row + waveOffset;
 
-          this.ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+          this.ctx.strokeStyle = this.skin.wave1;
 
           this.ctx.beginPath();
 
@@ -1455,6 +1914,56 @@ class BridgesGameRenderer {
 
           this.ctx.stroke();
       }
+
+      /*
+       * Вторая, более редкая волна, движется в ту же сторону, но медленнее.
+       */
+      const waveSpacing2 = 64;
+      const waveOffset2 = (this.time * 10) % waveSpacing2;
+
+      this.ctx.lineWidth = 1.2;
+      this.ctx.strokeStyle = this.skin.wave2;
+
+      for (let row = -waveSpacing2; row < h + waveSpacing2; row += waveSpacing2) {
+          const y = row + waveOffset2;
+
+          this.ctx.beginPath();
+
+          for (let x = -40; x <= w + 40; x += 40) {
+              const wave =
+                  Math.sin(x * 0.025 - this.time * 0.9 + row * 0.02) * 2.5;
+
+              if (x === -40) {
+                  this.ctx.moveTo(x, y + wave);
+              } else {
+                  this.ctx.lineTo(x, y + wave);
+              }
+          }
+
+          this.ctx.stroke();
+      }
+
+      /*
+       * Каустики — движущиеся светлые пятна от «линзы» воды.
+       */
+      this.ctx.save();
+      this.ctx.globalCompositeOperation = "screen";
+
+      for (let i = 0; i < 6; i++) {
+          const cx2 = ((i * 137 + this.time * 22) % (w + 80)) - 40;
+          const cy2 = ((i * 91 + this.time * 15) % (h + 80)) - 40;
+          const size = 30 + Math.sin(this.time + i) * 10;
+          const alpha = 0.06 + Math.sin(this.time * 1.3 + i) * 0.03;
+
+          const grad = this.ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, size);
+          grad.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+          grad.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+          this.ctx.fillStyle = grad;
+          this.ctx.fillRect(cx2 - size, cy2 - size, size * 2, size * 2);
+      }
+
+      this.ctx.restore();
 
       this.ctx.restore();
 
@@ -1502,6 +2011,214 @@ class BridgesGameRenderer {
   }
 
   /**
+   * Птицы над водой — чисто декоративный динамический слой.
+   * Летят медленно, обтекают мир по горизонтали.
+   */
+  drawBirds() {
+      if (!this.worldW || !this.worldH) return;
+
+      this.ctx.save();
+
+      this.ctx.fillStyle = this.skin.birdFill;
+      this.ctx.strokeStyle = this.skin.birdStroke;
+      this.ctx.lineCap = "round";
+      this.ctx.lineJoin = "round";
+
+      for (const b of this.birds) {
+          b.x += b.vx;
+          b.y += b.vy;
+          b.flap += 0.3;
+
+          if (b.x > this.worldW + 60) {
+              b.x = -60;
+              b.y = Math.random() * (this.worldH * 0.5) + 40;
+          }
+          if (b.y < 20) b.vy = Math.abs(b.vy);
+          if (b.y > this.worldH - 20) b.vy = -Math.abs(b.vy);
+
+          const s = b.scale;
+          const flap = Math.sin(b.flap);
+          const tipY = (-1.2 - flap * 2.8) * s;
+          const controlY = (-4.8 - flap * 2.4) * s;
+
+          this.ctx.save();
+          this.ctx.translate(b.x, b.y);
+
+          // Птица всегда летит головой вперёд.
+          this.ctx.scale(b.vx < 0 ? -1 : 1, 1);
+
+          /*
+           * Крылья рисуем одной плавной «чайкой». Тонкая линия
+           * с изгибом читается как птица гораздо лучше, чем
+           * сплошной широкий силуэт.
+           */
+          this.ctx.lineWidth = Math.max(1.1, 1.5 * s);
+          this.ctx.beginPath();
+          this.ctx.moveTo(-9 * s, tipY);
+          this.ctx.quadraticCurveTo(-4.5 * s, controlY, 0, 0);
+          this.ctx.quadraticCurveTo(4.5 * s, controlY, 9 * s, tipY);
+          this.ctx.stroke();
+
+          /*
+           * Раздвоенный хвост.
+           */
+          this.ctx.beginPath();
+          this.ctx.moveTo(-1.6 * s, 0.25 * s);
+          this.ctx.lineTo(-4.4 * s, -0.25 * s);
+          this.ctx.moveTo(-1.6 * s, 0.35 * s);
+          this.ctx.lineTo(-4.6 * s, 0.85 * s);
+          this.ctx.stroke();
+
+          /*
+           * Корпус и клюв.
+           */
+          this.ctx.beginPath();
+          this.ctx.ellipse(
+              0,
+              0.35 * s,
+              2.2 * s,
+              0.9 * s,
+              0,
+              0,
+              Math.PI * 2
+          );
+          this.ctx.fill();
+
+          this.ctx.beginPath();
+          this.ctx.moveTo(2.0 * s, 0.1 * s);
+          this.ctx.lineTo(3.9 * s, 0.3 * s);
+          this.ctx.lineTo(2.0 * s, 0.72 * s);
+          this.ctx.closePath();
+          this.ctx.fill();
+
+          this.ctx.restore();
+      }
+
+      this.ctx.restore();
+  }
+
+  /**
+   * Мелкие искорки над выполненными островами.
+   */
+  drawIslandSparkles() {
+      const islands = Array.from(this.logic.islands.keys());
+
+      if (islands.length === 0) return;
+
+      if (Math.random() < 0.1) {
+          const key = islands[Math.floor(Math.random() * islands.length)];
+          const [r, c] = key.split(",").map(Number);
+
+          const current = this.logic.getIslandBridgesCount([r, c]);
+          const target = this.logic.islands.get(key);
+
+          if (current === target && current > 0) {
+              const cx = c * this.cellSize + this.offset;
+              const cy = r * this.cellSize + this.offset;
+
+              this.sparkles.push({
+                  x: cx + (Math.random() - 0.5) * 44,
+                  y: cy + (Math.random() - 0.5) * 44,
+                  vx: (Math.random() - 0.5) * 0.6,
+                  vy: -0.5 - Math.random() * 0.9,
+                  size: 1.5 + Math.random() * 2.5,
+                  life: 0,
+                  maxLife: 18 + Math.random() * 22
+              });
+          }
+      }
+
+      this.ctx.save();
+      this.ctx.fillStyle = "#FDE047";
+
+      for (let i = this.sparkles.length - 1; i >= 0; i--) {
+          const s = this.sparkles[i];
+
+          s.x += s.vx;
+          s.y += s.vy;
+          s.life++;
+
+          const t = s.life / s.maxLife;
+
+          if (t >= 1) {
+              this.sparkles.splice(i, 1);
+              continue;
+          }
+
+          this.ctx.globalAlpha = 1 - t;
+          this.ctx.beginPath();
+          this.ctx.arc(s.x, s.y, s.size * (1 - t), 0, Math.PI * 2);
+          this.ctx.fill();
+      }
+
+      this.ctx.restore();
+  }
+
+  /**
+   * Конфетти при победе.
+   */
+  startConfetti() {
+      if (this.confettiStarted) return;
+      this.confettiStarted = true;
+
+      const colors = [
+          "#FDE047",
+          "#FBBF24",
+          "#EF4444",
+          "#10B981",
+          "#3B82F6",
+          "#E879F9"
+      ];
+
+      for (let i = 0; i < 90; i++) {
+          this.confetti.push({
+              x: this.canvasW / 2 + (Math.random() - 0.5) * 140,
+              y: this.canvasH / 2 + (Math.random() - 0.5) * 100,
+              vx: (Math.random() - 0.5) * 7,
+              vy: -2 - Math.random() * 5,
+              rot: Math.random() * Math.PI * 2,
+              vr: (Math.random() - 0.5) * 0.25,
+              color: colors[Math.floor(Math.random() * colors.length)],
+              size: 4 + Math.random() * 6,
+              life: 0,
+              maxLife: 50 + Math.random() * 110,
+              gravity: 0.15 + Math.random() * 0.25
+          });
+      }
+  }
+
+  drawConfetti() {
+      this.ctx.save();
+
+      for (let i = this.confetti.length - 1; i >= 0; i--) {
+          const p = this.confetti[i];
+
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += p.gravity;
+          p.rot += p.vr;
+          p.life++;
+
+          const t = p.life / p.maxLife;
+
+          if (t >= 1 || p.y > this.canvasH + 60) {
+              this.confetti.splice(i, 1);
+              continue;
+          }
+
+          this.ctx.save();
+          this.ctx.translate(p.x, p.y);
+          this.ctx.rotate(p.rot);
+          this.ctx.globalAlpha = 1 - t;
+          this.ctx.fillStyle = p.color;
+          this.ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 1.7);
+          this.ctx.restore();
+      }
+
+      this.ctx.restore();
+  }
+
+  /**
    * Подсветка выбранного/наведённого острова.
    * Вынесена из drawCartoonIsland, чтобы статичный кэш островов
    * не перерисовывался при каждом движении мыши.
@@ -1515,7 +2232,7 @@ class BridgesGameRenderer {
           this.ctx.save();
 
           this.ctx.strokeStyle = "#F6D396";
-          this.ctx.lineWidth = 4;
+          this.ctx.lineWidth = 4 + 1.5 * Math.sin(this.time * 6);
 
           this.ctx.beginPath();
           this.ctx.arc(cx, cy - 2, radius + 5, 0, Math.PI * 2);
@@ -1544,6 +2261,84 @@ class BridgesGameRenderer {
       this.ctx.restore();
   }
 
+  /**
+   * Небольшие декоративные детали вокруг острова (цветочки, камешки, пеньки).
+   * Положение детерминировано от координат острова, поэтому картинка
+   * стабильна и хранится внутри кэшированного чанка островов.
+   */
+  drawIslandDecorations(cx, cy, target, isComplete) {
+      const r = 28;
+      const seed = cx * 131 + cy * 37 + target * 13;
+
+      const rand = (n) => {
+          const x = Math.sin(seed + n * 7.3) * 9017.1;
+          return x - Math.floor(x);
+      };
+
+      const count = 4 + Math.floor(rand(0) * 4);
+
+      this.ctx.save();
+
+      for (let i = 0; i < count; i++) {
+          const angle = rand(i * 1.3) * Math.PI * 2;
+          const dist = r - 7 + rand(i * 2.7) * 11;
+          const x = cx + Math.cos(angle) * dist;
+          const y = cy - 2 + Math.sin(angle) * dist;
+          const type = Math.floor(rand(i * 3.9) * 3);
+
+          if (type === 0) {
+              /*
+               * Маленький цветочек с травинкой.
+               */
+              this.ctx.fillStyle = isComplete
+                  ? this.skin.flowerDone
+                  : this.skin.flower;
+              this.ctx.beginPath();
+              this.ctx.arc(
+                  x,
+                  y,
+                  1.3 + rand(i * 5.1) * 1.2,
+                  0,
+                  Math.PI * 2
+              );
+              this.ctx.fill();
+
+              this.ctx.strokeStyle = "rgba(98, 66, 56, 0.4)";
+              this.ctx.lineWidth = 0.8;
+              this.ctx.lineCap = "round";
+              this.ctx.beginPath();
+              this.ctx.moveTo(x, y + 2);
+              this.ctx.lineTo(x, y + 4 + rand(i * 7.9) * 2);
+              this.ctx.stroke();
+          } else if (type === 1) {
+              /*
+               * Камешек у берега.
+               */
+              this.ctx.fillStyle = "rgba(120, 95, 80, 0.75)";
+              this.ctx.beginPath();
+              this.ctx.arc(x, y, 2 + rand(i * 4.3) * 1.5, 0, Math.PI * 2);
+              this.ctx.fill();
+
+              this.ctx.strokeStyle = "rgba(60, 40, 30, 0.45)";
+              this.ctx.lineWidth = 0.7;
+              this.ctx.stroke();
+          } else {
+              /*
+               * О piccole пеньки/кораблик из коры.
+               */
+              this.ctx.fillStyle = "rgba(100, 75, 60, 0.6)";
+              this.ctx.fillRect(
+                  x - 1,
+                  y - 1,
+                  2 + rand(i * 3.1) * 2,
+                  2 + rand(i * 3.1) * 1.5
+              );
+          }
+      }
+
+      this.ctx.restore();
+  }
+
   drawCartoonIsland(cx, cy, target, current, isHovered, isSelected) {
       const radius = 28;
 
@@ -1565,8 +2360,8 @@ class BridgesGameRenderer {
         * 2. Земля под травой
         */
       const dirtGradient = this.ctx.createLinearGradient(cx, cy - radius, cx, cy + radius);
-      dirtGradient.addColorStop(0, "#8B6253");
-      dirtGradient.addColorStop(1, "#4D342C");
+      dirtGradient.addColorStop(0, this.skin.dirtTop);
+      dirtGradient.addColorStop(1, this.skin.dirtBottom);
 
       this.ctx.fillStyle = dirtGradient;
       this.ctx.beginPath();
@@ -1583,26 +2378,26 @@ class BridgesGameRenderer {
             * Переполнение — красный,
             * но не кислотный.
             */
-          grassGradient.addColorStop(0, "#F18A80");
-          grassGradient.addColorStop(0.55, "#D85B53");
-          grassGradient.addColorStop(1, "#A83E38");
+          grassGradient.addColorStop(0, this.skin.overA);
+          grassGradient.addColorStop(0.55, this.skin.overB);
+          grassGradient.addColorStop(1, this.skin.overC);
       } else if (isComplete) {
           /*
             * Заполненный остров —
             * более светлый и сочный.
             */
-          grassGradient.addColorStop(0, "#C4E89A");
-          grassGradient.addColorStop(0.42, "#91CE70");
-          grassGradient.addColorStop(0.78, "#62AA56");
-          grassGradient.addColorStop(1, "#438542");
+          grassGradient.addColorStop(0, this.skin.doneA);
+          grassGradient.addColorStop(0.42, this.skin.doneB);
+          grassGradient.addColorStop(0.78, this.skin.doneC);
+          grassGradient.addColorStop(1, this.skin.doneD);
       } else {
           /*
             * Обычный остров.
             */
-          grassGradient.addColorStop(0, "#B7E08A");
-          grassGradient.addColorStop(0.45, "#8BCB68");
-          grassGradient.addColorStop(0.78, "#62AA56");
-          grassGradient.addColorStop(1, "#438542");
+          grassGradient.addColorStop(0, this.skin.grassA);
+          grassGradient.addColorStop(0.45, this.skin.grassB);
+          grassGradient.addColorStop(0.78, this.skin.grassC);
+          grassGradient.addColorStop(1, this.skin.grassD);
       }
 
       this.ctx.fillStyle = grassGradient;
@@ -1668,13 +2463,15 @@ class BridgesGameRenderer {
           /*
             * Ствол.
             */
-          this.ctx.fillStyle = "#68473A";
+          this.ctx.fillStyle = this.skin.treeTrunk;
           this.ctx.fillRect(treeX - 2, treeY + 5, 4, 10);
 
           /*
             * Нижняя часть кроны.
             */
-          this.ctx.fillStyle = isComplete ? "#4E944B" : "#438447";
+          this.ctx.fillStyle = isComplete
+              ? this.skin.treeDoneDark
+              : this.skin.treeDark;
           this.ctx.beginPath();
           this.ctx.arc(treeX, treeY + 3, 7, 0, Math.PI * 2);
           this.ctx.fill();
@@ -1682,7 +2479,9 @@ class BridgesGameRenderer {
           /*
             * Верхняя часть кроны.
             */
-          this.ctx.fillStyle = isComplete ? "#65A956" : "#57964D";
+          this.ctx.fillStyle = isComplete
+              ? this.skin.treeDoneLight
+              : this.skin.treeLight;
           this.ctx.beginPath();
           this.ctx.arc(treeX + 3, treeY - 2, 6, 0, Math.PI * 2);
           this.ctx.fill();
@@ -1690,7 +2489,7 @@ class BridgesGameRenderer {
           /*
             * Контур дерева.
             */
-          this.ctx.strokeStyle = "#326B39";
+          this.ctx.strokeStyle = this.skin.treeOutline;
           this.ctx.lineWidth = 1.2;
           this.ctx.beginPath();
           this.ctx.arc(treeX, treeY + 3, 7, 0, Math.PI * 2);
@@ -1704,13 +2503,13 @@ class BridgesGameRenderer {
       let outlineWidth;
 
       if (isOverfilled) {
-          outlineColor = "#963832";
+          outlineColor = this.skin.outlineOver;
           outlineWidth = 3;
       } else if (isComplete) {
-          outlineColor = "#326F39";
+          outlineColor = this.skin.outlineDone;
           outlineWidth = 3;
       } else {
-          outlineColor = "#356B35";
+          outlineColor = this.skin.outline;
           outlineWidth = 2.5;
       }
 
@@ -1734,7 +2533,7 @@ class BridgesGameRenderer {
           /*
             * Тёмная дорожка.
             */
-          this.ctx.strokeStyle = "rgba(48, 69, 46, 0.48)";
+          this.ctx.strokeStyle = this.skin.progressTrack;
           this.ctx.lineWidth = 5;
           this.ctx.lineCap = "round";
 
@@ -1746,7 +2545,7 @@ class BridgesGameRenderer {
             * Заполненная часть.
             */
           if (fillRatio > 0) {
-              this.ctx.strokeStyle = "#F4D27A";
+              this.ctx.strokeStyle = this.skin.progressFill;
               this.ctx.lineWidth = 5;
               this.ctx.lineCap = "round";
 
@@ -1761,7 +2560,7 @@ class BridgesGameRenderer {
               const dotX = cx + Math.cos(angle) * progressRadius;
               const dotY = cy - 2 + Math.sin(angle) * progressRadius;
 
-              this.ctx.fillStyle = "#FFF4C7";
+              this.ctx.fillStyle = this.skin.progressDot;
               this.ctx.beginPath();
               this.ctx.arc(dotX, dotY, 2.5, 0, Math.PI * 2);
               this.ctx.fill();
@@ -1817,7 +2616,7 @@ class BridgesGameRenderer {
           /*
             * Красное внешнее кольцо.
             */
-          this.ctx.strokeStyle = "rgba(194, 58, 51, 0.88)";
+          this.ctx.strokeStyle = this.skin.overRing;
           this.ctx.lineWidth = 4;
 
           this.ctx.beginPath();
@@ -1830,7 +2629,7 @@ class BridgesGameRenderer {
           const badgeX = cx + 20;
           const badgeY = cy - 21;
 
-          this.ctx.fillStyle = "#B83B35";
+          this.ctx.fillStyle = this.skin.overBadge;
           this.ctx.beginPath();
           this.ctx.arc(badgeX, badgeY, 12, 0, Math.PI * 2);
           this.ctx.fill();
@@ -1868,11 +2667,18 @@ class BridgesGameRenderer {
       this.ctx.fillText(String(target), cx + 1, cy + 3);
 
       /*
-        * Основная цифра.
+        * Основная цифра с мягким свечением у выполненного острова.
         */
+      if (isComplete) {
+          const glow = 0.45 + 0.3 * Math.sin(this.time * 5);
+          this.ctx.shadowColor = `rgba(${this.skin.numberGlow}, ${glow})`;
+          this.ctx.shadowBlur = 10;
+      }
+
       this.ctx.fillStyle = "#FFFDF7";
       this.ctx.fillText(String(target), cx, cy + 1);
 
+      this.ctx.shadowBlur = 0;
       this.ctx.restore();
 
       /*
@@ -1926,7 +2732,7 @@ class BridgesGameRenderer {
           /*
           * 1. Мягкая тень под мостом.
           */
-          this.ctx.fillStyle = "rgba(45, 30, 22, 0.24)";
+          this.ctx.fillStyle = this.skin.bridgeShadow;
           this.ctx.beginPath();
           this.ctx.roundRect(2, -9, Math.max(0, len - 4), 18, 5);
           this.ctx.fill();
@@ -1935,9 +2741,9 @@ class BridgesGameRenderer {
           * 2. Основная деревянная поверхность.
           */
           const woodGradient = this.ctx.createLinearGradient(0, -8, 0, 8);
-          woodGradient.addColorStop(0, "#B88969");
-          woodGradient.addColorStop(0.45, "#A87558");
-          woodGradient.addColorStop(1, "#80533F");
+          woodGradient.addColorStop(0, this.skin.woodTop);
+          woodGradient.addColorStop(0.45, this.skin.woodMid);
+          woodGradient.addColorStop(1, this.skin.woodBottom);
 
           this.ctx.fillStyle = woodGradient;
           this.ctx.beginPath();
@@ -1947,7 +2753,7 @@ class BridgesGameRenderer {
           /*
           * 3. Верхняя светлая часть досок.
           */
-          this.ctx.fillStyle = "rgba(225, 190, 155, 0.30)";
+          this.ctx.fillStyle = this.skin.woodHighlight;
           this.ctx.beginPath();
           this.ctx.roundRect(0, -7, len, 5, 2);
           this.ctx.fill();
@@ -1964,7 +2770,7 @@ class BridgesGameRenderer {
               /*
               * Основная линия стыка.
               */
-              this.ctx.strokeStyle = "rgba(91, 57, 42, 0.65)";
+              this.ctx.strokeStyle = this.skin.plankLine;
               this.ctx.lineWidth = 1.4;
               this.ctx.beginPath();
               this.ctx.moveTo(x, -7);
@@ -1974,7 +2780,7 @@ class BridgesGameRenderer {
               /*
               * Маленький светлый край.
               */
-              this.ctx.strokeStyle = "rgba(235, 205, 170, 0.22)";
+              this.ctx.strokeStyle = this.skin.plankLight;
               this.ctx.lineWidth = 1;
               this.ctx.beginPath();
               this.ctx.moveTo(x + 1, -6);
@@ -1991,10 +2797,10 @@ class BridgesGameRenderer {
               const shade = plank % 3;
 
               if (shade === 1) {
-                  this.ctx.fillStyle = "rgba(70, 43, 32, 0.08)";
+                  this.ctx.fillStyle = this.skin.plankShadeA;
                   this.ctx.fillRect(x + 2, -6, Math.min(7, len - x - 4), 12);
               } else if (shade === 2) {
-                  this.ctx.fillStyle = "rgba(255, 225, 190, 0.07)";
+                  this.ctx.fillStyle = this.skin.plankShadeB;
                   this.ctx.fillRect(x + 2, -6, Math.min(6, len - x - 4), 12);
               }
           }
@@ -2002,7 +2808,7 @@ class BridgesGameRenderer {
           /*
           * 6. Боковые продольные балки.
           */
-          this.ctx.strokeStyle = "#704836";
+          this.ctx.strokeStyle = this.skin.beam;
           this.ctx.lineWidth = 2.5;
           this.ctx.lineCap = "round";
           this.ctx.beginPath();
@@ -2018,19 +2824,39 @@ class BridgesGameRenderer {
           * Очень тонкие, чтобы не превращать мост
           * в пунктирную конструкцию.
           */
-          this.ctx.strokeStyle = "rgba(91, 61, 45, 0.85)";
+          this.ctx.strokeStyle = this.skin.rope;
           this.ctx.lineWidth = 2;
+          this.ctx.lineCap = "round";
+
+          const sag = Math.min(7, len * 0.045);
+
           this.ctx.beginPath();
           this.ctx.moveTo(0, -11);
-          this.ctx.lineTo(len, -11);
-          this.ctx.moveTo(0, 11);
-          this.ctx.lineTo(len, 11);
+          this.ctx.quadraticCurveTo(len / 2, -11 + sag, len, -11);
           this.ctx.stroke();
+
+          this.ctx.beginPath();
+          this.ctx.moveTo(0, 11);
+          this.ctx.quadraticCurveTo(len / 2, 11 - sag, len, 11);
+          this.ctx.stroke();
+
+          /*
+          * Маленькие подвески канатов к доскам.
+          */
+          this.ctx.strokeStyle = this.skin.ropeHanger;
+          this.ctx.lineWidth = 0.9;
+
+          for (let x = 7; x < len - 3; x += plankStep) {
+              this.ctx.beginPath();
+              this.ctx.moveTo(x, -11);
+              this.ctx.lineTo(x, -6.5);
+              this.ctx.stroke();
+          }
 
           /*
           * 8. Маленькие крепления каната.
           */
-          this.ctx.fillStyle = "#6E4736";
+          this.ctx.fillStyle = this.skin.nail;
 
           for (let x = 8; x < len - 3; x += 26) {
               this.ctx.beginPath();
@@ -2047,7 +2873,7 @@ class BridgesGameRenderer {
           *
           * Даёт ощущение объёма.
           */
-          this.ctx.strokeStyle = "rgba(255, 235, 205, 0.32)";
+          this.ctx.strokeStyle = this.skin.woodTopLight;
           this.ctx.lineWidth = 1;
           this.ctx.beginPath();
           this.ctx.moveTo(3, -6);
@@ -2060,7 +2886,7 @@ class BridgesGameRenderer {
           * Благодаря этому мост лучше "садится" под острова.
           */
           const endGradient = this.ctx.createLinearGradient(0, 0, 18, 0);
-          endGradient.addColorStop(0, "rgba(65, 40, 30, 0.22)");
+          endGradient.addColorStop(0, this.skin.woodEnd);
           endGradient.addColorStop(1, "rgba(65, 40, 30, 0)");
 
           this.ctx.fillStyle = endGradient;
@@ -2068,7 +2894,7 @@ class BridgesGameRenderer {
 
           const rightGradient = this.ctx.createLinearGradient(Math.max(0, len - 18), 0, len, 0);
           rightGradient.addColorStop(0, "rgba(65, 40, 30, 0)");
-          rightGradient.addColorStop(1, "rgba(65, 40, 30, 0.22)");
+          rightGradient.addColorStop(1, this.skin.woodEnd);
 
           this.ctx.fillStyle = rightGradient;
           this.ctx.fillRect(Math.max(0, len - 18), -7, Math.min(18, len), 14);
@@ -2081,7 +2907,7 @@ class BridgesGameRenderer {
       */
       if (safeCount > 1) {
           this.ctx.save();
-          this.ctx.strokeStyle = "rgba(55, 39, 31, 0.30)";
+          this.ctx.strokeStyle = this.skin.bridgeGap;
           this.ctx.lineWidth = 2;
 
           for (let index = 0; index + 1 < offsets.length; index++) {
@@ -2322,6 +3148,16 @@ class BridgesGameRenderer {
         const emblemX = w / 2;
         const emblemY = py + 48;
 
+        /*
+         * Пульсующий знак победы.
+         */
+        const emblemPulse = 1 + 0.14 * Math.sin(this.time * 6) * this.victoryAlpha;
+
+        this.ctx.save();
+        this.ctx.translate(emblemX, emblemY);
+        this.ctx.scale(emblemPulse, emblemPulse);
+        this.ctx.translate(-emblemX, -emblemY);
+
         this.ctx.fillStyle = "#6AA65A";
         this.ctx.beginPath();
         this.ctx.arc(emblemX, emblemY, 17, 0, Math.PI * 2);
@@ -2344,6 +3180,33 @@ class BridgesGameRenderer {
         this.ctx.lineTo(emblemX - 2, emblemY + 6);
         this.ctx.lineTo(emblemX + 9, emblemY - 7);
         this.ctx.stroke();
+
+        this.ctx.restore();
+
+        /*
+         * Вращающиеся искорки вокруг эмблемы.
+         */
+        this.ctx.save();
+        this.ctx.translate(emblemX, emblemY);
+
+        for (let i = 0; i < 6; i++) {
+            const angle = this.time * 1.2 + (i / 6) * Math.PI * 2;
+            const radius = 24 + Math.sin(this.time + i) * 3;
+
+            this.ctx.beginPath();
+            this.ctx.arc(
+                Math.cos(angle) * radius,
+                Math.sin(angle) * radius,
+                2,
+                0,
+                Math.PI * 2
+            );
+            this.ctx.fillStyle = i % 2 === 0 ? "#FDE047" : "#BBF7D0";
+            this.ctx.globalAlpha = 0.8 + 0.2 * Math.sin(this.time * 2 + i);
+            this.ctx.fill();
+        }
+
+        this.ctx.restore();
 
         /*
          * 8. Заголовок.
@@ -2551,6 +3414,11 @@ class BridgesGameRenderer {
     this.drawWater();
 
     /*
+      * Птицы над водой — декоративный динамический слой.
+      */
+    this.drawBirds();
+
+    /*
       * 2. Мосты и острова — статичные кластеры.
       *
       * Слои перерисовываются только при изменении карты.
@@ -2563,6 +3431,11 @@ class BridgesGameRenderer {
       * 3. Динамическая подсветка наведения/выбора.
       */
     this.drawIslandHighlights();
+
+    /*
+      * Искорки над выполненными островами.
+      */
+    this.drawIslandSparkles();
 
     /*
       * 4. Предпросмотр будущего моста.
@@ -2636,7 +3509,12 @@ class BridgesGameRenderer {
       * 6. Экран победы — самый верхний слой.
       */
     if (this.isVictoryShown) {
+        if (!this.confettiStarted && this.victoryAlpha >= 1) {
+            this.startConfetti();
+        }
+
         this.drawVictoryScreen();
+        this.drawConfetti();
     }
   }
 }

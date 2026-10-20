@@ -70,6 +70,11 @@ body {
             var(--water-500) 100%
         );
 
+    background-size: 120% 120%, 120% 120%, 300% 300%;
+    background-attachment: fixed;
+
+    animation: bg-drift 14s ease-in-out infinite alternate;
+
     display: flex;
     justify-content: center;
     align-items: flex-start;
@@ -78,6 +83,15 @@ body {
 
     overflow-x: hidden;
     overflow-y: auto;
+}
+
+@keyframes bg-drift {
+    0% {
+        background-position: 0% 0%, 100% 100%, 0% 0%;
+    }
+    100% {
+        background-position: 100% 100%, 0% 0%, 100% 100%;
+    }
 }
 
 
@@ -252,23 +266,52 @@ canvas:focus-visible {
     width: 100%;
     max-width: 630px;
 
-    color: #991b1b;
-
     font-size: 0.9rem;
     font-weight: 700;
 
     text-align: center;
+    letter-spacing: 0.02em;
 }
 
 .game-status:not(:empty) {
-    padding: 9px 14px;
+    padding: 10px 16px;
 
-    background: rgba(255, 253, 247, 0.95);
+    background: rgba(255, 253, 247, 0.92);
 
-    border: 1px solid rgba(153, 27, 27, 0.25);
-    border-radius: 12px;
+    border: 1px solid rgba(98, 66, 56, 0.35);
+    border-radius: 14px;
 
-    box-shadow: var(--shadow-soft);
+    box-shadow:
+        0 10px 25px rgba(58, 36, 29, 0.14),
+        0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+
+    backdrop-filter: blur(6px);
+
+    background-clip: padding-box;
+
+    animation: status-fade 300ms ease-out;
+}
+
+@keyframes status-fade {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.game-status::before {
+    content: "✦";
+    margin-right: 8px;
+    color: var(--gold-500);
+}
+
+.game-status:not(:empty):not(.status-info) {
+    color: #713f12;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 
@@ -454,6 +497,522 @@ canvas:focus-visible {
 
     .game-header h1 {
         font-size: 2rem;
+    }
+}
+
+
+/* =========================================================
+   SKIN SELECTOR
+   ========================================================= */
+
+.skin-button {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+
+    z-index: 2;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    padding: 7px 12px;
+
+    border: 1px solid rgba(98, 66, 56, 0.35);
+    border-radius: 999px;
+
+    background: rgba(255, 253, 247, 0.82);
+
+    color: var(--wood-800);
+
+    font: 700 12.5px/1 "Nunito", sans-serif;
+    letter-spacing: 0.02em;
+
+    cursor: pointer;
+
+    box-shadow: 0 4px 10px rgba(58, 36, 29, 0.14);
+
+    transition:
+        transform 160ms ease,
+        background 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.skin-button:hover {
+    transform: translateY(-1px);
+
+    background: #fffdf7;
+
+    box-shadow: 0 7px 16px rgba(58, 36, 29, 0.2);
+}
+
+.skin-button:active {
+    transform: translateY(0);
+}
+
+.skin-button:focus-visible {
+    outline: 3px solid var(--gold-300);
+    outline-offset: 2px;
+}
+
+
+/* ---------- modal ---------- */
+
+.skin-modal[hidden] {
+    display: none;
+}
+
+.skin-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 20px;
+}
+
+.skin-backdrop {
+    position: absolute;
+    inset: 0;
+
+    background: rgba(18, 12, 10, 0.55);
+
+    backdrop-filter: blur(5px);
+
+    animation: skin-fade 180ms ease-out;
+}
+
+.skin-dialog {
+    position: relative;
+
+    width: min(100%, 760px);
+    max-height: calc(100vh - 40px);
+
+    overflow: auto;
+
+    padding: 30px 30px 28px;
+
+    border: 2px solid rgba(98, 66, 56, 0.4);
+    border-radius: 26px;
+
+    background:
+        linear-gradient(
+            180deg,
+            #fffdf7 0%,
+            #fff8e8 55%,
+            #f5e7c8 100%
+        );
+
+    box-shadow:
+        0 30px 70px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.55) inset;
+
+    animation: skin-pop 220ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.skin-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+
+    width: 36px;
+    height: 36px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 1px solid rgba(98, 66, 56, 0.25);
+    border-radius: 50%;
+
+    background: rgba(255, 253, 247, 0.8);
+
+    color: var(--wood-800);
+
+    font: 700 22px/1 "Nunito", sans-serif;
+
+    cursor: pointer;
+
+    transition:
+        background 150ms ease,
+        transform 150ms ease;
+}
+
+.skin-close:hover {
+    background: #fff;
+    transform: rotate(90deg);
+}
+
+#skinTitle {
+    margin: 0;
+
+    color: var(--wood-900);
+
+    font: 700 clamp(1.6rem, 4vw, 2.1rem)/1 "Fredoka", sans-serif;
+}
+
+.skin-subtitle {
+    margin: 7px 0 20px;
+
+    color: var(--text-muted);
+
+    font: 700 13px/1.35 "Nunito", sans-serif;
+}
+
+.skin-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.skin-card {
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+
+    padding: 10px;
+
+    border: 2px solid rgba(98, 66, 56, 0.22);
+    border-radius: 18px;
+
+    background: rgba(255, 255, 255, 0.55);
+
+    color: inherit;
+
+    text-align: left;
+
+    cursor: pointer;
+
+    transition:
+        transform 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.skin-card:hover {
+    transform: translateY(-3px);
+
+    border-color: rgba(217, 119, 6, 0.55);
+
+    box-shadow: 0 14px 28px rgba(58, 36, 29, 0.18);
+}
+
+.skin-card.is-active {
+    border-color: #d97706;
+
+    box-shadow:
+        0 0 0 3px rgba(251, 191, 36, 0.25),
+        0 14px 30px rgba(58, 36, 29, 0.18);
+}
+
+.skin-card:focus-visible {
+    outline: 3px solid var(--gold-300);
+    outline-offset: 3px;
+}
+
+.skin-thumb {
+    display: block;
+
+    overflow: hidden;
+
+    aspect-ratio: 22 / 12;
+
+    border-radius: 12px;
+
+    background: #0f172a;
+
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.skin-thumb canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.skin-name {
+    font: 700 15px/1.2 "Fredoka", sans-serif;
+    color: var(--wood-900);
+}
+
+.skin-desc {
+    color: var(--text-muted);
+
+    font: 700 11.5px/1.35 "Nunito", sans-serif;
+}
+
+.skin-check {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+
+    width: 24px;
+    height: 24px;
+
+    display: none;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: #16a34a;
+
+    color: #fff;
+
+    font: 700 13px/1 "Nunito", sans-serif;
+
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.skin-card.is-active .skin-check {
+    display: flex;
+}
+
+.skin-card.is-locked {
+    cursor: not-allowed;
+
+    opacity: 0.72;
+
+    filter: saturate(0.5);
+}
+
+.skin-card.is-locked:hover {
+    transform: none;
+
+    border-color: rgba(98, 66, 56, 0.22);
+
+    box-shadow: none;
+}
+
+.skin-thumb-locked {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background:
+        repeating-linear-gradient(
+            45deg,
+            rgba(98, 66, 56, 0.12) 0 10px,
+            rgba(98, 66, 56, 0.06) 10px 20px
+        );
+}
+
+.skin-placeholder {
+    color: rgba(98, 66, 56, 0.45);
+
+    font: 700 34px/1 "Fredoka", sans-serif;
+}
+
+.skin-badge {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+
+    padding: 3px 8px;
+
+    border-radius: 999px;
+
+    background: rgba(98, 66, 56, 0.14);
+
+    color: var(--text-muted);
+
+    font: 700 10px/1 "Nunito", sans-serif;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+body.skin-modal-open {
+    overflow: hidden;
+}
+
+@keyframes skin-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes skin-pop {
+    from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+
+/* ---------- night theme ---------- */
+
+body[data-skin="night"] {
+    --water-300: #312e81;
+    --water-400: #1e3a8a;
+    --water-500: #020617;
+
+    --text-main: #e2e8f0;
+    --text-muted: #cbd5e1;
+
+    --wood-900: #0f172a;
+    --wood-800: #1e293b;
+    --wood-700: #334155;
+    --wood-500: #64748b;
+
+    --cream-50: #1e293b;
+    --cream-100: #0f172a;
+    --cream-200: #334155;
+
+    --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.45);
+    --shadow-card: 0 20px 45px rgba(0, 0, 0, 0.55);
+    --shadow-heavy:
+        0 12px 0 rgba(0, 0, 0, 0.65),
+        0 24px 45px rgba(0, 0, 0, 0.5);
+}
+
+body[data-skin="night"] .game-header {
+    background:
+        linear-gradient(
+            180deg,
+            rgba(30, 41, 59, 0.96),
+            rgba(15, 23, 42, 0.94)
+        );
+
+    border-color: rgba(148, 163, 184, 0.35);
+}
+
+body[data-skin="night"] .game-header h1 {
+    color: #f8fafc;
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+}
+
+body[data-skin="night"] .subtitle {
+    color: #cbd5e1;
+}
+
+body[data-skin="night"] .game-status:not(:empty) {
+    background: rgba(15, 23, 42, 0.9);
+
+    color: #fde68a;
+
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+body[data-skin="night"] .game-help {
+    background: rgba(15, 23, 42, 0.82);
+
+    color: #cbd5e1;
+
+    border-color: rgba(148, 163, 184, 0.22);
+}
+
+body[data-skin="night"] .skin-button {
+    background: rgba(30, 41, 59, 0.85);
+
+    color: #e2e8f0;
+
+    border-color: rgba(148, 163, 184, 0.35);
+}
+
+body[data-skin="night"] .skin-dialog {
+    background:
+        linear-gradient(
+            180deg,
+            #1e293b 0%,
+            #0f172a 100%
+        );
+
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+body[data-skin="night"] #skinTitle,
+body[data-skin="night"] .skin-name {
+    color: #f8fafc;
+}
+
+body[data-skin="night"] .skin-desc {
+    color: #cbd5e1;
+}
+
+body[data-skin="night"] .skin-card {
+    background: rgba(30, 41, 59, 0.6);
+
+    border-color: rgba(148, 163, 184, 0.25);
+}
+
+body[data-skin="night"] .skin-close {
+    background: rgba(30, 41, 59, 0.8);
+
+    color: #e2e8f0;
+
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+body[data-skin="night"] .skin-placeholder {
+    color: rgba(226, 232, 240, 0.4);
+}
+
+body[data-skin="night"] .skin-badge {
+    background: rgba(148, 163, 184, 0.15);
+
+    color: #cbd5e1;
+}
+
+
+@media (max-width: 700px) {
+    .skin-button {
+        top: 10px;
+        right: 10px;
+
+        padding: 6px 9px;
+    }
+
+    .skin-button-label {
+        display: none;
+    }
+
+    .skin-dialog {
+        padding: 22px 16px 18px;
+
+        border-radius: 20px;
+    }
+
+    .skin-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .skin-card {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .skin-thumb {
+        flex: 0 0 120px;
+
+        width: 120px;
+    }
+
+    .skin-name {
+        font-size: 14px;
+    }
+
+    .skin-desc {
+        flex: 1 1 120px;
+    }
+
+    .skin-check {
+        top: 10px;
+        right: 10px;
+    }
+
+    .skin-badge {
+        top: 10px;
+        right: 10px;
     }
 }
 
