@@ -49,14 +49,13 @@ test('использует отдельный SolutionChecker для прове�
   assert.equal(game.solutionChecker.countSolutions(2), 1);
 });
 
-test('создание одного и двух мостов, затем удаление', () => {
+test('создание мостов 1..2 и удаление после максимума', () => {
   const game = createGame(5, [[0, 0], [0, 2]]);
 
-  assert.equal(game.addBridge([0, 0], [0, 2]), true);
-  assert.equal(game.bridges.get('0,0-0,2'), 1);
-
-  assert.equal(game.addBridge([0, 0], [0, 2]), true);
-  assert.equal(game.bridges.get('0,0-0,2'), 2);
+  for (let count = 1; count <= game.maxBridgeCount; count++) {
+    assert.equal(game.addBridge([0, 0], [0, 2]), true);
+    assert.equal(game.bridges.get('0,0-0,2'), count);
+  }
 
   assert.equal(game.addBridge([0, 0], [0, 2]), true);
   assert.equal(game.bridges.has('0,0-0,2'), false);
@@ -149,6 +148,17 @@ test('связанные острова с правильными числами
   assert.equal(game.checkVictory(), true);
 });
 
+test('связанные острова с двойным мостом — победа', () => {
+  const game = createGame(5, [[0, 0], [0, 2]]);
+
+  game.islands.set('0,0', 2);
+  game.islands.set('0,2', 2);
+  game.bridges.set('0,0-0,2', 2);
+
+  assert.equal(game.isConnected(), true);
+  assert.equal(game.checkVictory(), true);
+});
+
 test('несвязанные группы островов не дают победу', () => {
   const game = createGame(5, [
     [0, 0],
@@ -178,13 +188,66 @@ test('мост к несуществующему острову делает с�
   assert.equal(game.checkVictory(), false);
 });
 
-test('нельзя выиграть с тремя мостами между островами', () => {
+test('нельзя выиграть с кратностью больше максимума', () => {
   const game = createGame(5, [[0, 0], [0, 2]]);
 
+  game.bridges.set('0,0-0,2', game.maxBridgeCount + 1);
+
+  assert.equal(game.isConnected(), false);
+  assert.equal(game.checkVictory(), false);
+});
+
+test('три моста между островами недопустимы', () => {
+  const game = createGame(5, [[0, 0], [0, 2]]);
+
+  game.islands.set('0,0', 3);
+  game.islands.set('0,2', 3);
   game.bridges.set('0,0-0,2', 3);
 
   assert.equal(game.isConnected(), false);
   assert.equal(game.checkVictory(), false);
+});
+
+test('запрос кратности больше двух ограничивается двумя', () => {
+  const game = new BridgesGameLogic(5, {
+    maxBridgeCount: 4
+  });
+
+  assert.equal(game.maxBridgeCount, 2);
+
+  game.islands.set('0,0', 2);
+  game.islands.set('0,2', 2);
+
+  for (let count = 1; count <= 2; count++) {
+    assert.equal(game.addBridge([0, 0], [0, 2]), true);
+    assert.equal(game.bridges.get('0,0-0,2'), count);
+  }
+
+  assert.equal(game.addBridge([0, 0], [0, 2]), true);
+  assert.equal(game.bridges.has('0,0-0,2'), false);
+});
+
+test('солвер поддерживает двойные мосты', () => {
+  const game = createGame(5, [[0, 0], [0, 2]]);
+
+  game.islands.set('0,0', 2);
+  game.islands.set('0,2', 2);
+
+  assert.equal(game.solutionChecker.countSolutions(2), 1);
+});
+
+test('цепочка из трёх островов с двойными мостами имеет одно решение', () => {
+  const game = createGame(5, [[0, 0], [0, 2], [0, 4]]);
+
+  game.islands.set('0,0', 2);
+  game.islands.set('0,2', 4);
+  game.islands.set('0,4', 2);
+
+  game.bridges.set('0,0-0,2', 2);
+  game.bridges.set('0,2-0,4', 2);
+
+  assert.equal(game.checkVictory(), true);
+  assert.equal(game.solutionChecker.countSolutions(2), 1);
 });
 
 test('неверное число на острове не даёт победу', () => {
@@ -347,4 +410,114 @@ test('areIslandsNeighbors не считает отсутствующий ост�
     game.areIslandsNeighbors([2, 2], [2, 5]),
     false
   );
+});
+
+test('индекс мостов обновляется при прямой работе с Map', () => {
+  const game = createGame(5, [
+    [0, 0],
+    [0, 2],
+    [2, 0]
+  ]);
+
+  game.islands.set('0,0', 3);
+  game.islands.set('0,2', 1);
+  game.islands.set('2,0', 1);
+
+  // Тесты и внешний код могут менять Map напрямую — индекс должен
+  // оставаться актуальным и в этом случае.
+  game.bridges.set('0,0-0,2', 2);
+  game.bridges.set('0,0-2,0', 1);
+
+  assert.equal(game.getIslandBridgesCount([0, 0]), 3);
+  assert.equal(game.getIslandBridgesCount([0, 2]), 2);
+  assert.equal(game.getIslandBridgesCount([2, 0]), 1);
+
+  game.bridges.delete('0,0-0,2');
+
+  assert.equal(game.getIslandBridgesCount([0, 0]), 1);
+  assert.equal(game.getIslandBridgesCount([0, 2]), 0);
+
+  game.bridges.clear();
+
+  assert.equal(game.getIslandBridgesCount([0, 0]), 0);
+});
+
+test('countSolutionsForIslands не меняет состояние игры', () => {
+  const game = createGame(5, [[0, 0], [0, 2]]);
+
+  game.islands.set('0,0', 1);
+  game.islands.set('0,2', 1);
+
+  const islandsBefore = game.islands;
+  const bridgesBefore = game.bridges;
+
+  game.bridges.set('0,0-0,2', 1);
+
+  const snapshot = new Map(game.islands);
+  const count = game.solutionChecker.countSolutionsForIslands(
+    snapshot,
+    2
+  );
+
+  assert.equal(count, 1);
+  assert.equal(game.islands, islandsBefore);
+  assert.equal(game.bridges, bridgesBefore);
+  assert.equal(game.bridges.get('0,0-0,2'), 1);
+});
+
+test('expandLevel добавляет острова и сохраняет единственность решения', () => {
+  const game = new BridgesGameLogic(5);
+
+  game.islands.set('1,1', 1);
+  game.islands.set('1,3', 2);
+  game.islands.set('3,3', 1);
+
+  game.bridges.set('1,1-1,3', 1);
+  game.bridges.set('1,3-3,3', 1);
+
+  assert.equal(game.checkVictory(), true);
+
+  const ok = game.expandLevel({
+    growth: 2,
+    addIslands: 2,
+    doubleChance: 0
+  });
+
+  assert.equal(ok, true);
+  assert.equal(game.gridSize, 7);
+  assert.equal(game.islands.size, 5);
+
+  // Старые мосты игрока остаются на месте.
+  assert.equal(game.bridges.size, 2);
+  assert.equal(game.bridges.get('2,2-2,4'), 1);
+  assert.equal(game.bridges.get('2,4-4,4'), 1);
+
+  // Расширенная карта должна иметь ровно одно решение.
+  assert.equal(
+    game.solutionChecker.countSolutionsForIslands(
+      new Map(game.islands),
+      2
+    ),
+    1
+  );
+
+  for (const target of game.islands.values()) {
+    assert.equal(Number.isInteger(target) && target >= 1 && target <= 8, true);
+  }
+});
+
+test('кластеры без возможной связи сразу отклоняются', () => {
+  const game = createGame(5, [
+    [0, 0],
+    [0, 2],
+    [4, 4]
+  ]);
+
+  game.islands.set('0,0', 1);
+  game.islands.set('0,2', 1);
+  game.islands.set('4,4', 1);
+
+  // Между (0,0)-(0,2) есть ребро, но (4,4) изолирован:
+  // связного решения быть не может, полный перебор не нужен.
+  assert.equal(game.solutionChecker.countSolutions(2), 0);
 });

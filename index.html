@@ -31,6 +31,9 @@
         <div class="game-help" id="gameHelp">
             <span>🖱️ ЛКМ / касание + перетягивание — соединить острова</span>
             <span>🖱️ ПКМ — удалить мост</span>
+            <span>🔍 Колесо / щипок двумя пальцами — приближение</span>
+            <span>✋ Перетаскивание воды или СКМ — сдвиг карты</span>
+            <span>⌨️ + / − / 0 — масштаб</span>
             <span>📱 На телефоне — коснитесь моста, чтобы удалить</span>
         </div>
     </div>
@@ -43,7 +46,7 @@
             const logic = new BridgesGameLogic(7);
             const renderer = new BridgesGameRenderer('gameCanvas', logic);
 
-            const generated = renderer.generateValidLevel(1);
+            const generated = renderer.generateNewLevel(1);
 
             if (!generated) {
                 document.getElementById('gameStatus').textContent =

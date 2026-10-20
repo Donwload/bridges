@@ -3,68 +3,323 @@ class SolutionChecker {
         this.logic = logic;
     }
 
-    countSolutions(maxSolutions = 2) {
-        const logic = this.logic;
+    static now() {
+        if (
+            typeof performance !== 'undefined' &&
+            typeof performance.now === 'function'
+        ) {
+            return performance.now();
+        }
 
+        return Date.now();
+    }
+
+    static parseKey(key) {
+        if (typeof key !== 'string') return null;
+
+        const comma = key.indexOf(',');
+
+        if (comma <= 0 || comma === key.length - 1) return null;
+
+        const r = Number(key.slice(0, comma));
+        const c = Number(key.slice(comma + 1));
+
+        return Number.isInteger(r) && Number.isInteger(c)
+            ? { r, c }
+            : null;
+    }
+
+    countSolutions(maxSolutions = 2, deadline = null) {
+        return this.countSolutionsForIslands(
+            this.logic.islands,
+            maxSolutions,
+            deadline
+        );
+    }
+
+    /**
+     * Считает решения для переданной карты, не меняя состояние игры.
+     *
+     * Это важно для генератора: раньше он временно подменял this.islands и
+     * this.bridges, а затем восстанавливал их. Теперь проверка идёт по
+     * отдельному снимку и не вызывает лишних пересчётов/сбросов кэша.
+     */
+    countSolutionsForIslands(
+        islands,
+        maxSolutions = 2,
+        deadline = null,
+        maxBridgeCount = null
+    ) {
         if (
             !Number.isInteger(maxSolutions) ||
             maxSolutions < 1 ||
-            logic.islands.size === 0
+            !islands ||
+            typeof islands.keys !== 'function' ||
+            islands.size === 0
         ) {
             return 0;
         }
 
-        const islandKeys = [...logic.islands.keys()];
+        // Между одной парой островов допустимо не более двух мостов.
+        const requestedLimit = Number.isInteger(maxBridgeCount)
+            ? maxBridgeCount
+            : (Number.isInteger(this.logic.maxBridgeCount)
+                ? this.logic.maxBridgeCount
+                : 2);
+
+        const bridgeLimit = Math.max(
+            1,
+            Math.min(2, requestedLimit)
+        );
+
+        const timeLimit =
+            deadline === null || deadline === undefined
+                ? Infinity
+                : deadline;
+
+        let aborted = false;
+
+        const islandList = [];
+
+        for (const [key, target] of islands) {
+            const point = SolutionChecker.parseKey(key);
+
+            if (!point) return 0;
+
+            islandList.push({
+                id: islandList.length,
+                key,
+                r: point.r,
+                c: point.c,
+                target
+            });
+        }
+
+        const count = islandList.length;
+
+        // Строки и столбцы с островами, отсортированные по координате.
+        // Соседние острова в таком списке — ровно те, между которыми нет
+        // других островов. Это заменяет O(n²) перебор с проверкой пути.
+        const rows = new Map();
+        const columns = new Map();
+
+        for (const island of islandList) {
+            if (!Number.isInteger(island.target) || island.target < 0) {
+                return 0;
+            }
+
+            if (!rows.has(island.r)) rows.set(island.r, []);
+            if (!columns.has(island.c)) columns.set(island.c, []);
+
+            rows.get(island.r).push(island);
+            columns.get(island.c).push(island);
+        }
+
+        for (const row of rows.values()) {
+            row.sort((a, b) => a.c - b.c);
+        }
+
+        for (const column of columns.values()) {
+            column.sort((a, b) => a.r - b.r);
+        }
+
         const edges = [];
+        const seenEdges = new Set();
 
-        // Собираем все возможные рёбра между соседними островами.
-        for (let i = 0; i < islandKeys.length; i++) {
-            const [r1, c1] = islandKeys[i].split(',').map(Number);
+        const addEdge = (first, second) => {
+            const edgeKey = this.logic.getEdgeKey(
+                [first.r, first.c],
+                [second.r, second.c]
+            );
 
-            for (let j = i + 1; j < islandKeys.length; j++) {
-                const [r2, c2] = islandKeys[j].split(',').map(Number);
+            if (seenEdges.has(edgeKey)) return;
 
-                const i1 = [r1, c1];
-                const i2 = [r2, c2];
+            seenEdges.add(edgeKey);
 
-                if (!logic.areIslandsNeighbors(i1, i2)) {
-                    continue;
-                }
+            const k1 = first.key < second.key
+                ? first.key
+                : second.key;
+            const k2 = first.key < second.key
+                ? second.key
+                : first.key;
 
-                edges.push({
-                    i1,
-                    i2,
-                    key: logic.getEdgeKey(i1, i2),
-                    k1: islandKeys[i],
-                    k2: islandKeys[j]
-                });
+            edges.push({
+                key: edgeKey,
+                a: first.id,
+                b: second.id,
+                k1,
+                k2,
+                key1: first.key,
+                key2: second.key,
+                i1: [first.r, first.c],
+                i2: [second.r, second.c],
+                r1: first.r,
+                c1: first.c,
+                r2: second.r,
+                c2: second.c,
+                vertical: first.c === second.c,
+                minR: Math.min(first.r, second.r),
+                maxR: Math.max(first.r, second.r),
+                minC: Math.min(first.c, second.c),
+                maxC: Math.max(first.c, second.c),
+                row: first.r,
+                col: first.c
+            });
+        };
+
+        for (const row of rows.values()) {
+            for (let i = 0; i + 1 < row.length; i++) {
+                addEdge(row[i], row[i + 1]);
             }
         }
 
-        if (edges.length === 0 && islandKeys.length > 1) {
+        for (const column of columns.values()) {
+            for (let i = 0; i + 1 < column.length; i++) {
+                addEdge(column[i], column[i + 1]);
+            }
+        }
+
+        if (edges.length === 0) {
+            // Один остров без мостов может быть корректным только при
+            // нулевой цели; для игровых карт цель всегда положительная.
+            if (count > 1) return 0;
+
+            return islandList[0].target === 0 ? 1 : 0;
+        }
+
+        // ============================================================
+        // Разбиение на кластеры.
+        //
+        // Если граф возможных мостов распался на несколько компонент,
+        // соединить всю карту невозможно. Раньше это выяснялось только
+        // полным перебором всех вариантов; теперь — одним проходом DSU.
+        // ============================================================
+        if (count > 1) {
+            const parent = new Int32Array(count);
+
+            for (let i = 0; i < count; i++) parent[i] = i;
+
+            const find = (value) => {
+                let root = value;
+
+                while (parent[root] !== root) {
+                    root = parent[root];
+                }
+
+                while (parent[value] !== value) {
+                    const next = parent[value];
+                    parent[value] = root;
+                    value = next;
+                }
+
+                return root;
+            };
+
+            for (const edge of edges) {
+                const rootA = find(edge.a);
+                const rootB = find(edge.b);
+
+                if (rootA !== rootB) {
+                    parent[rootB] = rootA;
+                }
+            }
+
+            const firstRoot = find(0);
+
+            for (let i = 1; i < count; i++) {
+                if (find(i) !== firstRoot) {
+                    return 0;
+                }
+            }
+        }
+
+        const targets = new Int32Array(count);
+        let totalTarget = 0;
+
+        for (let i = 0; i < count; i++) {
+            targets[i] = islandList[i].target;
+            totalTarget += targets[i];
+        }
+
+        if (totalTarget % 2 !== 0) {
             return 0;
         }
 
-        const degree = new Map(
-            islandKeys.map(key => [key, 0])
-        );
+        // Ёмкость всех ещё не обработанных рёбер для каждой вершины.
+        //
+        // Раньше на каждом шаге перебора заново строилась Map
+        // remainingCapacity по всем оставшимся рёбрам. Теперь эта величина
+        // поддерживается инкрементально: при переходе к следующему ребру
+        // достаточно вычесть bridgeLimit у двух его концов.
+        const futureCapacity = new Int32Array(count);
 
-        const solutionBridges = new Map();
+        for (const edge of edges) {
+            futureCapacity[edge.a] += bridgeLimit;
+            futureCapacity[edge.b] += bridgeLimit;
+        }
+
+        for (let i = 0; i < count; i++) {
+            if (targets[i] > futureCapacity[i]) {
+                return 0;
+            }
+        }
+
+        // Сначала ребра у островов с маленькими целями — они сильнее
+        // ограничивают перебор.
+        edges.sort((first, second) => {
+            const firstMin = Math.min(
+                targets[first.a],
+                targets[first.b]
+            );
+            const secondMin = Math.min(
+                targets[second.a],
+                targets[second.b]
+            );
+
+            if (firstMin !== secondMin) {
+                return firstMin - secondMin;
+            }
+
+            return (
+                targets[first.a] +
+                targets[first.b] -
+                targets[second.a] -
+                targets[second.b]
+            );
+        });
+
+        const degree = new Int32Array(count);
+        const chosenEdges = [];
+
+        let remainingVertices = 0;
+
+        for (let i = 0; i < count; i++) {
+            if (targets[i] > 0) remainingVertices++;
+        }
+
         let solutions = 0;
+        let calls = 0;
 
         const search = (index) => {
-            if (solutions >= maxSolutions) {
+            if (aborted || solutions >= maxSolutions) {
                 return;
             }
 
-            if (index === edges.length) {
-                for (const key of islandKeys) {
-                    if (degree.get(key) !== logic.islands.get(key)) {
-                        return;
-                    }
-                }
+            calls++;
 
-                if (!this.isSolutionConnected(solutionBridges, islandKeys)) {
+            // Проверяем время не на каждом узле: performance.now() сам
+            // по себе недешёвый, а бюджет нужен лишь как страховка.
+            if ((calls & 31) === 0) {
+                if (SolutionChecker.now() > timeLimit) {
+                    aborted = true;
+                    return;
+                }
+            }
+
+            if (index === edges.length) {
+                if (remainingVertices !== 0) return;
+
+                if (!this.isSolutionConnected(chosenEdges, count)) {
                     return;
                 }
 
@@ -74,80 +329,83 @@ class SolutionChecker {
 
             const edge = edges[index];
 
-            const target1 = logic.islands.get(edge.k1);
-            const target2 = logic.islands.get(edge.k2);
+            const first = edge.a;
+            const second = edge.b;
 
-            const current1 = degree.get(edge.k1);
-            const current2 = degree.get(edge.k2);
+            const targetA = targets[first];
+            const targetB = targets[second];
 
-            for (let count = 0; count <= 2; count++) {
-                const next1 = current1 + count;
-                const next2 = current2 + count;
+            const currentA = degree[first];
+            const currentB = degree[second];
 
-                if (next1 > target1 || next2 > target2) {
+            // Ёмкость рёбер после текущего.
+            const nextCapacityA = futureCapacity[first] - bridgeLimit;
+            const nextCapacityB = futureCapacity[second] - bridgeLimit;
+
+            // Больше, чем нужно любому из концов, класть бессмысленно.
+            const edgeMax = Math.min(
+                bridgeLimit,
+                targetA,
+                targetB
+            );
+
+            for (let bridges = 0; bridges <= edgeMax; bridges++) {
+                const nextA = currentA + bridges;
+                const nextB = currentB + bridges;
+
+                if (nextA > targetA || nextB > targetB) {
+                    continue;
+                }
+
+                // Если даже все оставшиеся рёбра не дотянут остров
+                // до его числа, ветка тупиковая. Проверяем только концы
+                // текущего ребра: остальные вершины были проверены выше.
+                if (
+                    targetA - nextA > nextCapacityA ||
+                    targetB - nextB > nextCapacityB
+                ) {
                     continue;
                 }
 
                 if (
-                    count > 0 &&
-                    logic.hasIntersection(
-                        edge.i1,
-                        edge.i2,
-                        solutionBridges
+                    bridges > 0 &&
+                    this.logic.hasIntersectionWithEdges(
+                        edge,
+                        chosenEdges
                     )
                 ) {
                     continue;
                 }
 
-                if (count > 0) {
-                    solutionBridges.set(edge.key, count);
+                let completedDelta = 0;
+
+                if (currentA < targetA && nextA === targetA) {
+                    completedDelta--;
                 }
 
-                degree.set(edge.k1, next1);
-                degree.set(edge.k2, next2);
-
-                let possible = true;
-                const remainingCapacity = new Map(
-                    islandKeys.map(key => [key, 0])
-                );
-
-                for (let k = index + 1; k < edges.length; k++) {
-                    const future = edges[k];
-
-                    remainingCapacity.set(
-                        future.k1,
-                        remainingCapacity.get(future.k1) + 2
-                    );
-
-                    remainingCapacity.set(
-                        future.k2,
-                        remainingCapacity.get(future.k2) + 2
-                    );
+                if (currentB < targetB && nextB === targetB) {
+                    completedDelta--;
                 }
 
-                for (const key of islandKeys) {
-                    const remaining =
-                        logic.islands.get(key) - degree.get(key);
+                degree[first] = nextA;
+                degree[second] = nextB;
 
-                    if (
-                        remaining < 0 ||
-                        remaining > remainingCapacity.get(key)
-                    ) {
-                        possible = false;
-                        break;
-                    }
-                }
+                if (bridges > 0) chosenEdges.push(edge);
 
-                if (possible) {
-                    search(index + 1);
-                }
+                futureCapacity[first] -= bridgeLimit;
+                futureCapacity[second] -= bridgeLimit;
+                remainingVertices += completedDelta;
 
-                degree.set(edge.k1, current1);
-                degree.set(edge.k2, current2);
+                search(index + 1);
 
-                if (count > 0) {
-                    solutionBridges.delete(edge.key);
-                }
+                remainingVertices -= completedDelta;
+                futureCapacity[first] += bridgeLimit;
+                futureCapacity[second] += bridgeLimit;
+
+                if (bridges > 0) chosenEdges.pop();
+
+                degree[first] = currentA;
+                degree[second] = currentB;
 
                 if (solutions >= maxSolutions) {
                     return;
@@ -157,58 +415,62 @@ class SolutionChecker {
 
         search(0);
 
-        return solutions;
+        // -1 означает: перебор прерван по времени, решение не установлено.
+        return aborted ? -1 : solutions;
     }
 
-    isSolutionConnected(solutionBridges, islandKeys) {
-        if (islandKeys.length === 0) {
+    isSolutionConnected(solutionEdges, islandCount) {
+        if (islandCount === 0) {
             return false;
         }
 
-        const adjacency = new Map(
-            islandKeys.map(key => [key, []])
-        );
-
-        for (const [edgeKey, count] of solutionBridges.entries()) {
-            if (
-                !Number.isInteger(count) ||
-                count < 1 ||
-                count > 2
-            ) {
-                return false;
-            }
-
-            const parts = edgeKey.split('-');
-
-            if (parts.length !== 2) {
-                return false;
-            }
-
-            const [k1, k2] = parts;
-
-            if (!adjacency.has(k1) || !adjacency.has(k2)) {
-                return false;
-            }
-
-            adjacency.get(k1).push(k2);
-            adjacency.get(k2).push(k1);
+        if (islandCount === 1) {
+            return true;
         }
 
-        const visited = new Set([islandKeys[0]]);
-        const queue = [islandKeys[0]];
+        // Связный граф на N вершинах не может иметь меньше N-1 рёбер.
+        if (!solutionEdges || solutionEdges.length < islandCount - 1) {
+            return false;
+        }
 
-        for (let index = 0; index < queue.length; index++) {
-            const current = queue[index];
+        const parent = new Int32Array(islandCount);
 
-            for (const neighbor of adjacency.get(current)) {
-                if (!visited.has(neighbor)) {
-                    visited.add(neighbor);
-                    queue.push(neighbor);
-                }
+        for (let i = 0; i < islandCount; i++) parent[i] = i;
+
+        const find = (value) => {
+            let root = value;
+
+            while (parent[root] !== root) {
+                root = parent[root];
+            }
+
+            while (parent[value] !== value) {
+                const next = parent[value];
+                parent[value] = root;
+                value = next;
+            }
+
+            return root;
+        };
+
+        for (const edge of solutionEdges) {
+            const rootA = find(edge.a);
+            const rootB = find(edge.b);
+
+            if (rootA !== rootB) {
+                parent[rootB] = rootA;
             }
         }
 
-        return visited.size === islandKeys.length;
+        const firstRoot = find(0);
+
+        for (let i = 1; i < islandCount; i++) {
+            if (find(i) !== firstRoot) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
 

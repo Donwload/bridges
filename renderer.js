@@ -37,6 +37,25 @@ class BridgesGameRenderer {
     this.btn2Hovered = false;
     this.isVictoryShown = false;
 
+    // Вид: приближение и сдвиг карты.
+    this.zoom = 1;
+    this.minZoom = 1;
+    this.maxZoom = 8;
+    this.fitScale = 1;
+    this.viewScale = 1;
+    this.viewX = 0;
+    this.viewY = 0;
+    this.panning = null;
+    this.pointers = new Map();
+    this.pinch = null;
+    this.hoverZoomBtn = null;
+
+    // Режим бесконечного расширения: после каждой победы карта растёт.
+    this.endless = true;
+
+    // Сколько расширений уже сделано (нужно для растущего прироста островов).
+    this.expansionsDone = 0;
+
     this.level = 1;
 
     this.levels = [
@@ -55,6 +74,19 @@ class BridgesGameRenderer {
     this.time = 0;
     this.victoryAlpha = 0;
     this.lastMousePos = { x: 0, y: 0 };
+
+    // Кэш статичной части мира.
+    //
+    // Мир разбит на кластеры-чанки. Мосты и острова рисуются в отдельные
+    // offscreen-слои и перерисовываются только тогда, когда меняются.
+    // Каждый кадр эти слои просто копируются на экран, поэтому игровой цикл
+    // больше не пересчитывает и не перерисовывает всю карту заново.
+    this.chunkSize = 256;
+    this.chunkScale = 1;
+    this.bridgeChunks = new Map();
+    this.islandChunks = new Map();
+    this.worldElements = null;
+    this.waterCache = null;
 
     this.updateCanvasGeometry();
 
@@ -122,10 +154,42 @@ class BridgesGameRenderer {
   }
 
   setupEvents() {
+      // Колесо мыши — приближение.
+      this.canvas.addEventListener('wheel', (e) => {
+          e.preventDefault();
+
+          const pos = this.getMousePos(e);
+          const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+
+          this.zoomAt(pos.x, pos.y, factor);
+      }, { passive: false });
+
       this.canvas.addEventListener('pointermove', (e) => {
           const pos = this.getMousePos(e);
 
-          this.lastMousePos = pos;
+          if (e.pointerType === 'touch' && this.pointers.has(e.pointerId)) {
+              this.pointers.set(e.pointerId, pos);
+          }
+
+          // Два пальца — приближение/отдаление.
+          if (this.pinch && this.pointers.size >= 2) {
+              this.updatePinch();
+              return;
+          }
+
+          // Перетаскивание пустого места — сдвиг карты.
+          if (this.panning && this.panning.pointerId === e.pointerId) {
+              this.viewX =
+                  this.panning.originX + (pos.x - this.panning.startX);
+              this.viewY =
+                  this.panning.originY + (pos.y - this.panning.startY);
+
+              this.clampView();
+              return;
+          }
+
+          this.lastMousePos = this.toWorld(pos.x, pos.y);
+
           this.onMouseMove(pos);
 
           if (this.selectedIsland && e.pointerType !== 'mouse') {
@@ -135,6 +199,25 @@ class BridgesGameRenderer {
 
       this.canvas.addEventListener('pointerdown', (e) => {
           const pos = this.getMousePos(e);
+
+          // Второй палец — начинаем pinch.
+          if (e.pointerType === 'touch') {
+              this.pointers.set(e.pointerId, pos);
+
+              if (this.pointers.size === 2) {
+                  this.startPinch();
+                  return;
+              }
+
+              if (this.pointers.size > 2) return;
+          }
+
+          // Средняя кнопка мыши — сдвиг карты.
+          if (e.button === 1) {
+              e.preventDefault();
+              this.startPan(pos, e.pointerId);
+              return;
+          }
 
           // ПКМ: сразу удаляем мост под курсором.
           if (e.button === 2) {
@@ -146,6 +229,20 @@ class BridgesGameRenderer {
           // Только основная кнопка мыши / touch.
           if (e.button !== 0) return;
 
+          // Кнопки приближения.
+          const zoomButton = this.getZoomButtonClicked(pos.x, pos.y);
+
+          if (zoomButton) {
+              const cx = this.viewportW / 2;
+              const cy = this.viewportH / 2;
+
+              if (zoomButton === 'in') this.zoomAt(cx, cy, 1.4);
+              if (zoomButton === 'out') this.zoomAt(cx, cy, 1 / 1.4);
+              if (zoomButton === 'reset') this.resetView();
+
+              return;
+          }
+
           // На телефоне касание существующего моста удаляет его.
           if (e.pointerType === 'touch') {
               const bridge = this.findBridgeAtPos(pos.x, pos.y);
@@ -156,8 +253,15 @@ class BridgesGameRenderer {
                       bridge[1]
                   );
 
+                  if (removed) {
+                      this.invalidateBridgeArea(
+                          bridge[0],
+                          bridge[1]
+                      );
+                  }
+
                   this.selectedIsland = null;
-                  this.lastMousePos = pos;
+                  this.lastMousePos = this.toWorld(pos.x, pos.y);
 
                   if (removed && this.logic.checkVictory()) {
                       this.isVictoryShown = true;
@@ -165,6 +269,17 @@ class BridgesGameRenderer {
 
                   return;
               }
+          }
+
+          // Клик по пустому месту начинает сдвиг карты.
+          const island = this.getIslandAtPos(pos.x, pos.y);
+          const overButton = this.isVictoryShown
+              ? this.isOverVictoryButton(pos)
+              : this.getBtnClicked(pos.x, pos.y) !== 0;
+
+          if (!island && !overButton) {
+              this.startPan(pos, e.pointerId);
+              return;
           }
 
           this.onMouseDown(pos);
@@ -177,6 +292,25 @@ class BridgesGameRenderer {
       this.canvas.addEventListener('pointerup', (e) => {
           const pos = this.getMousePos(e);
 
+          if (e.pointerType === 'touch') {
+              this.pointers.delete(e.pointerId);
+
+              if (this.pinch && this.pointers.size < 2) {
+                  this.pinch = null;
+              }
+          }
+
+          if (this.panning && this.panning.pointerId === e.pointerId) {
+              this.panning = null;
+              this.canvas.style.cursor = 'grab';
+
+              if (this.canvas.hasPointerCapture?.(e.pointerId)) {
+                  this.canvas.releasePointerCapture(e.pointerId);
+              }
+
+              return;
+          }
+
           if (e.button !== 0) return;
 
           this.onMouseUp(pos);
@@ -187,6 +321,9 @@ class BridgesGameRenderer {
       });
 
       this.canvas.addEventListener('pointercancel', (e) => {
+          this.pointers.delete(e.pointerId);
+          this.pinch = null;
+          this.panning = null;
           this.selectedIsland = null;
 
           if (this.canvas.hasPointerCapture?.(e.pointerId)) {
@@ -197,6 +334,33 @@ class BridgesGameRenderer {
       this.canvas.addEventListener('contextmenu', (e) => {
           e.preventDefault();
       });
+
+      // Клавиатура: + / − — зум, 0 — показать всю карту.
+      this.canvas.addEventListener('keydown', (e) => {
+          if (e.key === '+' || e.key === '=') {
+              e.preventDefault();
+              this.zoomAt(this.viewportW / 2, this.viewportH / 2, 1.25);
+          } else if (e.key === '-' || e.key === '_') {
+              e.preventDefault();
+              this.zoomAt(this.viewportW / 2, this.viewportH / 2, 1 / 1.25);
+          } else if (e.key === '0') {
+              e.preventDefault();
+              this.resetView();
+          }
+      });
+  }
+
+  isOverVictoryButton(pos) {
+      if (!this.isVictoryShown) return false;
+
+      const button = this.getVictoryButtonRect();
+
+      return (
+          pos.x >= button.x &&
+          pos.x <= button.x + button.width &&
+          pos.y >= button.y &&
+          pos.y <= button.y + button.height
+      );
   }
 
   getMousePos(e) {
@@ -209,15 +373,33 @@ class BridgesGameRenderer {
   updateCanvasGeometry() {
       const boardPadding = 35;
 
-      // Размер игровой сетки.
+      // Размер игровой сетки в «мировых» пикселях.
       const boardSize = this.gridSize * this.cellSize;
 
-      // Canvas оставляет свободное место вокруг всей сетки.
-      this.canvasW = boardSize + boardPadding * 2;
-      this.canvasH = boardSize + 110;
+      // Мир целиком (с отступами по краям).
+      this.worldW = boardSize + boardPadding * 2;
+      this.worldH = boardSize + boardPadding * 2;
+
+      // Canvas ограничен по размеру, чтобы большие карты не тормозили:
+      // на экран выводится вписанная карта, а приближение делает зум.
+      const VIEW_LIMIT = 1100;
+      this.fitScale = Math.min(1, VIEW_LIMIT / this.worldW);
+
+      this.viewportW = Math.round(this.worldW * this.fitScale);
+      this.viewportH = Math.round(this.worldH * this.fitScale);
+
+      this.buttonBarHeight = 92;
+
+      this.canvasW = this.viewportW;
+      this.canvasH = this.viewportH + this.buttonBarHeight;
 
       this.canvas.width = this.canvasW;
       this.canvas.height = this.canvasH;
+
+      // На небольших полях рисуем кластеры с запасом по чёткости,
+      // чтобы приближение не превращало острова в мыло. На больших
+      // картах память важнее, поэтому там остаётся масштаб 1:1.
+      this.chunkScale = this.worldW <= 1200 ? 2 : 1;
 
       /*
         * offset — это координата ЦЕНТРА первой клетки.
@@ -226,14 +408,18 @@ class BridgesGameRenderer {
         */
       this.offset = boardPadding + this.cellSize / 2;
 
-      // Кнопки располагаем по центру canvas.
+      // Новая карта — показываем её целиком.
+      this.resetView();
+
+      // Кнопки располагаем по центру нижней панели.
       const buttonWidth = 230;
       const buttonGap = 20;
       const buttonHeight = 45;
 
       const totalButtonsWidth = buttonWidth * 2 + buttonGap;
       const buttonsStartX = (this.canvasW - totalButtonsWidth) / 2;
-      const buttonsY = boardSize + 40;
+      const buttonsY =
+          this.viewportH + (this.buttonBarHeight - buttonHeight) / 2;
 
       this.btn1Coords = [
           buttonsStartX,
@@ -248,19 +434,585 @@ class BridgesGameRenderer {
           buttonsStartX + buttonWidth * 2 + buttonGap,
           buttonsY + buttonHeight
       ];
+
+      // Кнопки приближения в правом верхнем углу.
+      const zSize = 34;
+      const zGap = 8;
+      const zX = this.canvasW - zSize - 12;
+      const zY = 12;
+
+      this.zoomInRect = { x: zX, y: zY, w: zSize, h: zSize };
+      this.zoomOutRect = { x: zX, y: zY + zSize + zGap, w: zSize, h: zSize };
+      this.zoomResetRect = {
+          x: zX,
+          y: zY + (zSize + zGap) * 2,
+          w: zSize,
+          h: zSize
+      };
+
+      // Геометрия мира изменилась: старые кластеры и вода больше не годятся.
+      this.invalidateWorldCache();
+  }
+
+  /**
+   * Полный сброс кэша мира. Вызывается при смене размера поля/карты.
+   */
+  invalidateWorldCache() {
+      this.bridgeChunks.clear();
+      this.islandChunks.clear();
+      this.worldElements = null;
+      this.waterCache = null;
+  }
+
+  /**
+   * Индекс элементов мира: заранее посчитанные габариты мостов и островов.
+   * Нужен, чтобы при сборке кластера рисовать только то, что попадает
+   * в его границы, и не разбирать ключи повторно.
+   */
+  ensureWorldElements() {
+      if (this.worldElements) return this.worldElements;
+
+      const islandMargin = 42;
+      // У двойного моста крайняя дорожка смещена на 11 px,
+      // а канаты добавляют ещё 11 px. Запас нужен, чтобы кластер
+      // не обрезал внешние дорожки.
+      const bridgeMargin = 26;
+
+      const islands = [];
+      const bridges = [];
+
+      for (const [key, target] of this.logic.islands.entries()) {
+          const [r, c] = key.split(',').map(Number);
+
+          if (!Number.isInteger(r) || !Number.isInteger(c)) continue;
+
+          const cx = c * this.cellSize + this.offset;
+          const cy = r * this.cellSize + this.offset;
+
+          islands.push({
+              key,
+              r,
+              c,
+              target,
+              cx,
+              cy,
+              minX: cx - islandMargin,
+              maxX: cx + islandMargin,
+              minY: cy - islandMargin,
+              maxY: cy + islandMargin
+          });
+      }
+
+      for (const meta of this.logic.getBridgeMetas()) {
+          if (meta.invalid) continue;
+
+          const count = this.logic.bridges.get(meta.edgeKey) || 0;
+
+          const x1 = meta.c1 * this.cellSize + this.offset;
+          const y1 = meta.r1 * this.cellSize + this.offset;
+          const x2 = meta.c2 * this.cellSize + this.offset;
+          const y2 = meta.r2 * this.cellSize + this.offset;
+
+          bridges.push({
+              meta,
+              count,
+              x1,
+              y1,
+              x2,
+              y2,
+              minX: Math.min(x1, x2) - bridgeMargin,
+              maxX: Math.max(x1, x2) + bridgeMargin,
+              minY: Math.min(y1, y2) - bridgeMargin,
+              maxY: Math.max(y1, y2) + bridgeMargin
+          });
+      }
+
+      this.worldElements = { islands, bridges };
+
+      return this.worldElements;
+  }
+
+  /**
+   * Сбрасывает только те кластеры, которые пересекает прямоугольник.
+   */
+  invalidateWorldArea(minX, minY, maxX, maxY) {
+      const size = this.chunkSize;
+
+      const firstCol = Math.max(0, Math.floor(minX / size));
+      const lastCol = Math.floor(maxX / size);
+      const firstRow = Math.max(0, Math.floor(minY / size));
+      const lastRow = Math.floor(maxY / size);
+
+      for (let row = firstRow; row <= lastRow; row++) {
+          for (let col = firstCol; col <= lastCol; col++) {
+              const key = `${col},${row}`;
+
+              this.bridgeChunks.delete(key);
+              this.islandChunks.delete(key);
+          }
+      }
+  }
+
+  /**
+   * После добавления/удаления моста пересобираем индекс и сбрасываем
+   * кластеры вокруг обоих островов: меняется и мост, и внешний вид
+   * островов на его концах.
+   */
+  invalidateBridgeArea(i1, i2) {
+      this.worldElements = null;
+      this.ensureWorldElements();
+
+      if (
+          !Array.isArray(i1) ||
+          !Array.isArray(i2) ||
+          i1.length < 2 ||
+          i2.length < 2
+      ) {
+          this.invalidateWorldCache();
+          return;
+      }
+
+      const x1 = i1[1] * this.cellSize + this.offset;
+      const y1 = i1[0] * this.cellSize + this.offset;
+      const x2 = i2[1] * this.cellSize + this.offset;
+      const y2 = i2[0] * this.cellSize + this.offset;
+
+      const margin = 60;
+
+      this.invalidateWorldArea(
+          Math.min(x1, x2) - margin,
+          Math.min(y1, y2) - margin,
+          Math.max(x1, x2) + margin,
+          Math.max(y1, y2) + margin
+      );
+  }
+
+  getChunkKey(col, row) {
+      return `${col},${row}`;
+  }
+
+  getBridgeChunk(col, row, width, height) {
+      const key = this.getChunkKey(col, row);
+
+      let canvas = this.bridgeChunks.get(key);
+
+      if (canvas) return canvas;
+
+      canvas = document.createElement('canvas');
+      canvas.width = width * this.chunkScale;
+      canvas.height = height * this.chunkScale;
+
+      const chunkCtx = canvas.getContext('2d');
+      const originX = col * this.chunkSize;
+      const originY = row * this.chunkSize;
+
+      chunkCtx.scale(this.chunkScale, this.chunkScale);
+      chunkCtx.translate(-originX, -originY);
+
+      const previousCtx = this.ctx;
+      this.ctx = chunkCtx;
+
+      try {
+          for (const bridge of this.ensureWorldElements().bridges) {
+              if (
+                  bridge.maxX < originX ||
+                  bridge.minX > originX + width ||
+                  bridge.maxY < originY ||
+                  bridge.minY > originY + height
+              ) {
+                  continue;
+              }
+
+              this.drawMedievalBridge(
+                  bridge.x1,
+                  bridge.y1,
+                  bridge.x2,
+                  bridge.y2,
+                  bridge.count
+              );
+          }
+      } finally {
+          this.ctx = previousCtx;
+      }
+
+      this.bridgeChunks.set(key, canvas);
+
+      return canvas;
+  }
+
+  getIslandChunk(col, row, width, height) {
+      const key = this.getChunkKey(col, row);
+
+      let canvas = this.islandChunks.get(key);
+
+      if (canvas) return canvas;
+
+      canvas = document.createElement('canvas');
+      canvas.width = width * this.chunkScale;
+      canvas.height = height * this.chunkScale;
+
+      const chunkCtx = canvas.getContext('2d');
+      const originX = col * this.chunkSize;
+      const originY = row * this.chunkSize;
+
+      chunkCtx.scale(this.chunkScale, this.chunkScale);
+      chunkCtx.translate(-originX, -originY);
+
+      const previousCtx = this.ctx;
+      this.ctx = chunkCtx;
+
+      try {
+          for (const island of this.ensureWorldElements().islands) {
+              if (
+                  island.maxX < originX ||
+                  island.minX > originX + width ||
+                  island.maxY < originY ||
+                  island.minY > originY + height
+              ) {
+                  continue;
+              }
+
+              const current = this.logic.getIslandBridgesCount([
+                  island.r,
+                  island.c
+              ]);
+
+              this.drawCartoonIsland(
+                  island.cx,
+                  island.cy,
+                  island.target,
+                  current,
+                  false,
+                  false
+              );
+          }
+      } finally {
+          this.ctx = previousCtx;
+      }
+
+      this.islandChunks.set(key, canvas);
+
+      return canvas;
+  }
+
+  /**
+   * Рисует статичные кластеры мостов и островов.
+   * Мосты всегда ниже островов, поэтому слои копируются по очереди.
+   */
+  drawWorldChunks() {
+      const ctx = this.ctx;
+      const size = this.chunkSize;
+
+      const left = Math.max(0, -this.viewX / this.viewScale);
+      const top = Math.max(0, -this.viewY / this.viewScale);
+      const right = Math.min(
+          this.worldW,
+          (this.viewportW - this.viewX) / this.viewScale
+      );
+      const bottom = Math.min(
+          this.worldH,
+          (this.viewportH - this.viewY) / this.viewScale
+      );
+
+      if (right <= left || bottom <= top) return;
+
+      const firstCol = Math.max(0, Math.floor(left / size));
+      const firstRow = Math.max(0, Math.floor(top / size));
+
+      const lastCol = Math.min(
+          Math.ceil(this.worldW / size) - 1,
+          Math.floor(right / size)
+      );
+
+      const lastRow = Math.min(
+          Math.ceil(this.worldH / size) - 1,
+          Math.floor(bottom / size)
+      );
+
+      // Слой мостов.
+      for (let row = firstRow; row <= lastRow; row++) {
+          for (let col = firstCol; col <= lastCol; col++) {
+              const originX = col * size;
+              const originY = row * size;
+
+              const width = Math.min(size, this.worldW - originX);
+              const height = Math.min(size, this.worldH - originY);
+
+              if (width <= 0 || height <= 0) continue;
+
+              const chunk = this.getBridgeChunk(
+                  col,
+                  row,
+                  width,
+                  height
+              );
+
+              ctx.drawImage(
+                  chunk,
+                  0,
+                  0,
+                  chunk.width,
+                  chunk.height,
+                  originX,
+                  originY,
+                  width,
+                  height
+              );
+          }
+      }
+
+      // Слой островов.
+      for (let row = firstRow; row <= lastRow; row++) {
+          for (let col = firstCol; col <= lastCol; col++) {
+              const originX = col * size;
+              const originY = row * size;
+
+              const width = Math.min(size, this.worldW - originX);
+              const height = Math.min(size, this.worldH - originY);
+
+              if (width <= 0 || height <= 0) continue;
+
+              const chunk = this.getIslandChunk(
+                  col,
+                  row,
+                  width,
+                  height
+              );
+
+              ctx.drawImage(
+                  chunk,
+                  0,
+                  0,
+                  chunk.width,
+                  chunk.height,
+                  originX,
+                  originY,
+                  width,
+                  height
+              );
+          }
+      }
+  }
+
+  /**
+   * Подсветка наведения/выбора — динамический слой поверх статичного кэша.
+   */
+  drawIslandHighlights() {
+      const drawOne = (island, isSelected) => {
+          if (!island) return;
+
+          const cx = island[1] * this.cellSize + this.offset;
+          const cy = island[0] * this.cellSize + this.offset;
+
+          const isHovered =
+              !isSelected &&
+              this.hoveredIsland &&
+              this.hoveredIsland[0] === island[0] &&
+              this.hoveredIsland[1] === island[1];
+
+          this.drawIslandHighlight(
+              cx,
+              cy,
+              isHovered,
+              isSelected
+          );
+      };
+
+      const sameIsland = (first, second) =>
+          Boolean(
+              first &&
+              second &&
+              first[0] === second[0] &&
+              first[1] === second[1]
+          );
+
+      if (!sameIsland(this.hoveredIsland, this.selectedIsland)) {
+          drawOne(this.hoveredIsland, false);
+      }
+
+      drawOne(this.selectedIsland, true);
+  }
+
+  /**
+   * Показывает всю карту целиком.
+   */
+  resetView() {
+      this.zoom = this.minZoom;
+      this.viewScale = this.fitScale;
+      this.viewX = (this.viewportW - this.worldW * this.viewScale) / 2;
+      this.viewY = (this.viewportH - this.worldH * this.viewScale) / 2;
+  }
+
+  /**
+   * Не даёт утащить карту за пределы экрана и центрирует её,
+   * если она меньше окна.
+   */
+  clampView() {
+      this.viewScale = this.fitScale * this.zoom;
+
+      const contentW = this.worldW * this.viewScale;
+      const contentH = this.worldH * this.viewScale;
+
+      if (contentW <= this.viewportW) {
+          this.viewX = (this.viewportW - contentW) / 2;
+      } else {
+          this.viewX = Math.min(
+              0,
+              Math.max(this.viewportW - contentW, this.viewX)
+          );
+      }
+
+      if (contentH <= this.viewportH) {
+          this.viewY = (this.viewportH - contentH) / 2;
+      } else {
+          this.viewY = Math.min(
+              0,
+              Math.max(this.viewportH - contentH, this.viewY)
+          );
+      }
+  }
+
+  /**
+   * Приближение вокруг точки экрана.
+   */
+  zoomAt(screenX, screenY, factor) {
+      const newZoom = Math.max(
+          this.minZoom,
+          Math.min(this.maxZoom, this.zoom * factor)
+      );
+
+      if (Math.abs(newZoom - this.zoom) < 1e-4) {
+          return;
+      }
+
+      const oldScale = this.viewScale;
+
+      // Мировая точка под курсором.
+      const wx = (screenX - this.viewX) / oldScale;
+      const wy = (screenY - this.viewY) / oldScale;
+
+      this.zoom = newZoom;
+      this.viewScale = this.fitScale * this.zoom;
+
+      this.viewX = screenX - wx * this.viewScale;
+      this.viewY = screenY - wy * this.viewScale;
+
+      this.clampView();
+  }
+
+  toWorld(x, y) {
+      return {
+          x: (x - this.viewX) / this.viewScale,
+          y: (y - this.viewY) / this.viewScale
+      };
+  }
+
+  getZoomButtonClicked(x, y) {
+      const hit = (rect) =>
+          rect &&
+          x >= rect.x &&
+          x <= rect.x + rect.w &&
+          y >= rect.y &&
+          y <= rect.y + rect.h;
+
+      if (hit(this.zoomInRect)) return 'in';
+      if (hit(this.zoomOutRect)) return 'out';
+      if (hit(this.zoomResetRect)) return 'reset';
+
+      return null;
+  }
+
+  startPan(pos, pointerId) {
+      this.panning = {
+          pointerId,
+          startX: pos.x,
+          startY: pos.y,
+          originX: this.viewX,
+          originY: this.viewY
+      };
+
+      this.selectedIsland = null;
+      this.canvas.style.cursor = 'grabbing';
+      this.canvas.setPointerCapture?.(pointerId);
+  }
+
+  startPinch() {
+      const points = [...this.pointers.values()];
+
+      if (points.length < 2) return;
+
+      const [a, b] = points;
+
+      this.pinch = {
+          distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)),
+          zoom: this.zoom,
+          centerX: (a.x + b.x) / 2,
+          centerY: (a.y + b.y) / 2
+      };
+
+      this.panning = null;
+      this.selectedIsland = null;
+  }
+
+  updatePinch() {
+      const points = [...this.pointers.values()];
+
+      if (points.length < 2 || !this.pinch) return;
+
+      const [a, b] = points;
+      const distance = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
+      const centerX = (a.x + b.x) / 2;
+      const centerY = (a.y + b.y) / 2;
+
+      this.zoomAt(
+          this.pinch.centerX,
+          this.pinch.centerY,
+          distance / this.pinch.distance
+      );
+
+      // Двигаем карту вслед за пальцами.
+      this.viewX += centerX - this.pinch.centerX;
+      this.viewY += centerY - this.pinch.centerY;
+
+      this.pinch.distance = distance;
+      this.pinch.centerX = centerX;
+      this.pinch.centerY = centerY;
+      this.pinch.zoom = this.zoom;
+
+      this.clampView();
+  }
+
+  /**
+   * Сложность уровня: 0 — легко, 1 — максимум.
+   */
+  getDifficulty() {
+      return Math.min(1, (Math.max(1, this.level) - 1) / 14);
+  }
+
+  /**
+   * Вероятность двойного моста. Именно она делает карты сложнее:
+   * числа на островах растут, а вариантов распределения становится меньше.
+   * Между одной парой островов допустимо не более двух мостов.
+   */
+  getDoubleChance() {
+      return 0.15 + 0.6 * this.getDifficulty();
   }
 
   generateNewLevel(level = this.level) {
-    const profile = this.levels[level - 1];
-
-    if (!profile) {
-        return false;
-    }
+    // Для бесконечного режима уровни за пределами кампании
+    // генерируются на текущем размере поля.
+    const profile = this.levels[level - 1] ?? {
+        minIslands: 8,
+        maxIslands: 12,
+        gridSize: this.gridSize,
+        name: "🧭 Новые земли"
+    };
 
     const success = this.logic.generateValidLevel({
         minIslands: profile.minIslands,
         maxIslands: profile.maxIslands,
-        gridSize: profile.gridSize
+        gridSize: profile.gridSize,
+        doubleChance: this.getDoubleChance()
     });
 
     if (success) {
@@ -272,13 +1024,11 @@ class BridgesGameRenderer {
       this.hoveredIsland = null;
       this.lastMousePos = { x: 0, y: 0 };
 
-
-      this.selectedIsland = null;
-      this.hoveredIsland = null;
-      this.lastMousePos = { x: 0, y: 0 };
-
       if (this.statusElement) {
-          this.statusElement.textContent = `Уровень ${this.level}: ${profile.name}`;
+          this.statusElement.textContent =
+              `Уровень ${this.level}: ${profile.name} · ` +
+              `двойных связей: ${Math.round(this.getDoubleChance() * 100)}% · ` +
+              `мостов на связь: до ${this.logic.maxBridgeCount}`;
       }
     } else if (this.statusElement) {
         this.statusElement.textContent =
@@ -290,10 +1040,80 @@ class BridgesGameRenderer {
     return success;
 }
 
+  /**
+   * Расширяет пройденную карту и начинает следующий уровень.
+   * Старые острова и уже построенные мосты остаются на месте,
+   * вокруг поля появляются новые острова.
+   */
+  expandLevel() {
+    // Каждое следующее расширение добавляет на 2 острова больше:
+    // 2, 4, 6, 8, ...
+    const addIslands = 2 * (this.expansionsDone + 1);
 
-  getIslandAtPos(x, y) { return this.logic.getIslandAtPos(x, y, this.cellSize, this.offset); }
+    // Под растущее число островов даём и больше места. Новые острова
+    // теперь ищут самые свободные клетки по всей карте, а не только
+    // во внешней полосе, поэтому поле растёт умеренно. Небольшой запас
+    // нужен, чтобы внешней полосы хватало на уникальные строки и
+    // столбцы новых листьев без лишних повторных попыток.
+    const growth = Math.max(
+        2,
+        2 * Math.ceil(addIslands / 4) +
+            (addIslands >= 8 ? 2 : 0)
+    );
+
+    const success = this.logic.expandLevel({
+        growth,
+        addIslands,
+        doubleChance: this.getDoubleChance()
+    });
+
+    if (!success) {
+        if (this.statusElement) {
+            this.statusElement.textContent =
+                "Не удалось расширить карту. Нажмите ещё раз.";
+        }
+
+        return false;
+    }
+
+    this.level++;
+    this.expansionsDone++;
+    this.gridSize = this.logic.gridSize;
+
+    this.updateCanvasGeometry();
+
+    this.selectedIsland = null;
+    this.hoveredIsland = null;
+    this.lastMousePos = { x: 0, y: 0 };
+
+    this.isVictoryShown = false;
+    this.victoryAlpha = 0;
+
+    if (this.statusElement) {
+        this.statusElement.textContent =
+            `Уровень ${this.level}: карта расширена, старые мосты сохранены. ` +
+            `Добавлено островов: ${addIslands}. ` +
+            `Двойных связей: ${Math.round(this.getDoubleChance() * 100)}%. ` +
+            `Всего: ${this.logic.islands.size}, поле ${this.gridSize}×${this.gridSize}`;
+    }
+
+    return true;
+  }
+
+
+  getIslandAtPos(x, y) {
+      const p = this.toWorld(x, y);
+      return this.logic.getIslandAtPos(p.x, p.y, this.cellSize, this.offset);
+  }
 
   findBridgeAtPos(x, y) {
+      // Переводим экранные координаты в мировые (с учётом зума).
+      const world = this.toWorld(x, y);
+
+      x = world.x;
+      y = world.y;
+      // Для двойного моста крайняя дорожка смещена на 11 px,
+      // плюс половина толщины настила. Радиус должен её доставать.
       const HIT_RADIUS = 18;
       const END_MARGIN = 30;
 
@@ -370,7 +1190,14 @@ class BridgesGameRenderer {
   }
 
   onMouseMove(pos) {
-    if (this.isVictoryShown) return;
+    const zoomButton = this.getZoomButtonClicked(pos.x, pos.y);
+    this.hoverZoomBtn = zoomButton;
+
+    if (this.isVictoryShown) {
+        this.canvas.style.cursor = zoomButton ? 'pointer' : 'default';
+        return;
+    }
+
     const island = this.getIslandAtPos(pos.x, pos.y);
     const islandChanged = JSON.stringify(island) !== JSON.stringify(this.hoveredIsland);
     if (islandChanged) this.hoveredIsland = island;
@@ -379,7 +1206,7 @@ class BridgesGameRenderer {
     const btnChanged = (btn === 1) !== this.btn1Hovered || (btn === 2) !== this.btn2Hovered;
     if (btnChanged) { this.btn1Hovered = (btn === 1); this.btn2Hovered = (btn === 2); }
 
-    this.canvas.style.cursor = (btn || island) ? 'pointer' : 'crosshair';
+    this.canvas.style.cursor = (zoomButton || btn || island) ? 'pointer' : 'grab';
   }
 
   onMouseDown(pos) {
@@ -392,6 +1219,12 @@ class BridgesGameRenderer {
             pos.y >= button.y &&
             pos.y <= button.y + button.height
         ) {
+            // Бесконечный режим: расширяем пройденную карту.
+            if (this.endless) {
+                this.expandLevel();
+                return;
+            }
+
             // Кампания завершена.
             // Начинаем её заново с первого уровня.
             if (this.level >= this.levels.length) {
@@ -423,6 +1256,7 @@ class BridgesGameRenderer {
 
     if (btn === 2) {
         this.logic.reset();
+        this.invalidateWorldCache();
         this.selectedIsland = null;
         this.hoveredIsland = null;
         return;
@@ -436,7 +1270,19 @@ class BridgesGameRenderer {
     if (this.selectedIsland && !this.isVictoryShown) {
       const targetIsland = this.getIslandAtPos(pos.x, pos.y);
       if (targetIsland && JSON.stringify(targetIsland) !== JSON.stringify(this.selectedIsland)) {
-        if (!this.logic.addBridge(this.selectedIsland, targetIsland)) this.flashWarning();
+        const added = this.logic.addBridge(
+            this.selectedIsland,
+            targetIsland
+        );
+
+        if (added) {
+            this.invalidateBridgeArea(
+                this.selectedIsland,
+                targetIsland
+            );
+        } else {
+            this.flashWarning();
+        }
       }
       this.selectedIsland = null;
       if (this.logic.checkVictory()) this.isVictoryShown = true;
@@ -458,6 +1304,11 @@ class BridgesGameRenderer {
       );
 
       if (removed) {
+          this.invalidateBridgeArea(
+              bridge[0],
+              bridge[1]
+          );
+
           this.selectedIsland = null;
 
           if (this.logic.checkVictory()) {
@@ -473,44 +1324,99 @@ class BridgesGameRenderer {
     setTimeout(() => this.canvas.style.transform = "translateX(0)", 150);
   }
 
-  drawTopDownWater() {
-      const w = this.canvasW;
-      const h = this.canvasH;
+  /**
+   * Статичная основа воды: градиент, свечение и затемнение по краям.
+   * Строится один раз на текущую геометрию мира и дальше просто копируется.
+   */
+  buildWaterCache() {
+      const maxDimension = Math.max(this.worldW, this.worldH);
+      const scale = Math.min(1, 1600 / maxDimension);
 
-      /*
-      * Базовый цвет воды.
-      * Используем несколько мягких градиентов вместо
-      * старых резких диагональных полос.
-      */
-      const gradient = this.ctx.createLinearGradient(0, 0, w, h);
+      const width = Math.max(1, Math.round(this.worldW * scale));
+      const height = Math.max(1, Math.round(this.worldH * scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
 
       gradient.addColorStop(0, "#7DD3FC");
       gradient.addColorStop(0.45, "#38BDF8");
       gradient.addColorStop(1, "#0284C7");
 
-      this.ctx.fillStyle = gradient;
-      this.ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
 
-
-      /*
-      * Мягкое свечение сверху.
-      */
-      const glow = this.ctx.createRadialGradient(
-          w * 0.25,
-          h * 0.12,
+      const glow = ctx.createRadialGradient(
+          width * 0.25,
+          height * 0.12,
           0,
-          w * 0.25,
-          h * 0.12,
-          w * 0.8
+          width * 0.25,
+          height * 0.12,
+          width * 0.8
       );
 
       glow.addColorStop(0, "rgba(255,255,255,0.20)");
       glow.addColorStop(0.45, "rgba(255,255,255,0.06)");
       glow.addColorStop(1, "rgba(255,255,255,0)");
 
-      this.ctx.fillStyle = glow;
-      this.ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, width, height);
 
+      const vignette = ctx.createRadialGradient(
+          width / 2,
+          height / 2,
+          Math.min(width, height) * 0.28,
+          width / 2,
+          height / 2,
+          Math.max(width, height) * 0.72
+      );
+
+      vignette.addColorStop(0, "rgba(0,0,0,0)");
+      vignette.addColorStop(0.72, "rgba(0,40,80,0.04)");
+      vignette.addColorStop(1, "rgba(0,40,80,0.18)");
+
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, width, height);
+
+      this.waterCache = { canvas, width, height };
+  }
+
+  /**
+   * Вода: статичная основа + лёгкая анимация бликов поверх неё.
+   */
+  drawWater() {
+      if (
+          !this.waterCache ||
+          this.waterCache.worldW !== this.worldW ||
+          this.waterCache.worldH !== this.worldH
+      ) {
+          this.buildWaterCache();
+          this.waterCache.worldW = this.worldW;
+          this.waterCache.worldH = this.worldH;
+      }
+
+      this.ctx.drawImage(
+          this.waterCache.canvas,
+          0,
+          0,
+          this.waterCache.width,
+          this.waterCache.height,
+          0,
+          0,
+          this.worldW,
+          this.worldH
+      );
+
+      this.drawWaterAnimation();
+  }
+
+  drawWaterAnimation() {
+      const w = this.worldW;
+      const h = this.worldH;
 
       /*
       * Медленные горизонтальные ряби.
@@ -551,7 +1457,6 @@ class BridgesGameRenderer {
       }
 
       this.ctx.restore();
-
 
       /*
       * Небольшие мягкие блики.
@@ -594,29 +1499,49 @@ class BridgesGameRenderer {
       }
 
       this.ctx.restore();
+  }
 
+  /**
+   * Подсветка выбранного/наведённого острова.
+   * Вынесена из drawCartoonIsland, чтобы статичный кэш островов
+   * не перерисовывался при каждом движении мыши.
+   */
+  drawIslandHighlight(cx, cy, isHovered, isSelected) {
+      if (!isSelected && !isHovered) return;
 
-      /*
-      * Лёгкое затемнение по краям.
-      *
-      * Оно визуально отделяет игровое поле от деревянной
-      * рамки и делает центр более читаемым.
-      */
-      const vignette = this.ctx.createRadialGradient(
-          w / 2,
-          h / 2,
-          Math.min(w, h) * 0.28,
-          w / 2,
-          h / 2,
-          Math.max(w, h) * 0.72
-      );
+      const radius = 28;
 
-      vignette.addColorStop(0, "rgba(0,0,0,0)");
-      vignette.addColorStop(0.72, "rgba(0,40,80,0.04)");
-      vignette.addColorStop(1, "rgba(0,40,80,0.18)");
+      if (isSelected) {
+          this.ctx.save();
 
-      this.ctx.fillStyle = vignette;
-      this.ctx.fillRect(0, 0, w, h);
+          this.ctx.strokeStyle = "#F6D396";
+          this.ctx.lineWidth = 4;
+
+          this.ctx.beginPath();
+          this.ctx.arc(cx, cy - 2, radius + 5, 0, Math.PI * 2);
+          this.ctx.stroke();
+
+          this.ctx.strokeStyle = "rgba(255,244,214,0.45)";
+          this.ctx.lineWidth = 2;
+
+          this.ctx.beginPath();
+          this.ctx.arc(cx, cy - 2, radius + 8, 0, Math.PI * 2);
+          this.ctx.stroke();
+
+          this.ctx.restore();
+          return;
+      }
+
+      this.ctx.save();
+
+      this.ctx.strokeStyle = "rgba(255,255,255,0.78)";
+      this.ctx.lineWidth = 3;
+
+      this.ctx.beginPath();
+      this.ctx.arc(cx, cy - 2, radius + 3, 0, Math.PI * 2);
+      this.ctx.stroke();
+
+      this.ctx.restore();
   }
 
   drawCartoonIsland(cx, cy, target, current, isHovered, isSelected) {
@@ -951,49 +1876,12 @@ class BridgesGameRenderer {
       this.ctx.restore();
 
       /*
-        * 12. Выбранный остров
+        * 12. Выбранный остров / наведение
         *
-        * Двойной тёплый золотой контур.
+        * Подсветка вынесена в отдельный динамический слой:
+        * статичный кэш острова не зависит от положения курсора.
         */
-      if (isSelected) {
-          this.ctx.save();
-
-          /*
-            * Основной золотой контур.
-            */
-          this.ctx.strokeStyle = "#F6D396";
-          this.ctx.lineWidth = 4;
-
-          this.ctx.beginPath();
-          this.ctx.arc(cx, cy - 2, radius + 5, 0, Math.PI * 2);
-          this.ctx.stroke();
-
-          /*
-            * Очень мягкий внешний ореол.
-            */
-          this.ctx.strokeStyle = "rgba(255,244,214,0.45)";
-          this.ctx.lineWidth = 2;
-
-          this.ctx.beginPath();
-          this.ctx.arc(cx, cy - 2, radius + 8, 0, Math.PI * 2);
-          this.ctx.stroke();
-
-          this.ctx.restore();
-      } else if (isHovered) {
-          /*
-            * Наведение — мягкий светлый контур.
-            */
-          this.ctx.save();
-
-          this.ctx.strokeStyle = "rgba(255,255,255,0.78)";
-          this.ctx.lineWidth = 3;
-
-          this.ctx.beginPath();
-          this.ctx.arc(cx, cy - 2, radius + 3, 0, Math.PI * 2);
-          this.ctx.stroke();
-
-          this.ctx.restore();
-      }
+      this.drawIslandHighlight(cx, cy, isHovered, isSelected);
   }
 
   drawMedievalBridge(x1, y1, x2, y2, count) {
@@ -1003,9 +1891,24 @@ class BridgesGameRenderer {
       const angle = Math.atan2(dy, dx);
 
       /*
-      * Отступ от центра для двойного моста.
+      * Для двух мостов рисуем две дорожки симметрично оси:
+      * -11/+11. Одиночный мост идёт по центру.
       */
-      const offsets = count === 1 ? [0] : [-11, 11];
+      const safeCount = Math.max(
+          1,
+          Math.min(
+              Number.isInteger(count) ? count : 1,
+              2
+          )
+      );
+
+      const spacing = safeCount <= 1 ? 0 : 22;
+
+      const offsets = Array.from(
+          { length: safeCount },
+          (_, index) =>
+              (index - (safeCount - 1) / 2) * spacing
+      );
 
       this.ctx.save();
       this.ctx.translate(x1, y1);
@@ -1174,17 +2077,23 @@ class BridgesGameRenderer {
       }
 
       /*
-      * Для двойного моста добавляем небольшой
-      * визуальный просвет между двумя дорожками.
+      * У двойного моста рисуем линию просвета между дорожками.
       */
-      if (count === 2) {
+      if (safeCount > 1) {
           this.ctx.save();
           this.ctx.strokeStyle = "rgba(55, 39, 31, 0.30)";
           this.ctx.lineWidth = 2;
-          this.ctx.beginPath();
-          this.ctx.moveTo(0, 0);
-          this.ctx.lineTo(len, 0);
-          this.ctx.stroke();
+
+          for (let index = 0; index + 1 < offsets.length; index++) {
+              const middle =
+                  (offsets[index] + offsets[index + 1]) / 2;
+
+              this.ctx.beginPath();
+              this.ctx.moveTo(0, middle);
+              this.ctx.lineTo(len, middle);
+              this.ctx.stroke();
+          }
+
           this.ctx.restore();
       }
 
@@ -1460,7 +2369,12 @@ class BridgesGameRenderer {
          */
         this.ctx.font = '700 17px "Nunito", sans-serif';
         this.ctx.fillStyle = "#765E52";
-        this.ctx.fillText(`Уровень ${this.level} из ${this.levels.length} пройден!`, w / 2, py + 120);
+        this.ctx.fillText(
+            this.endless
+                ? `Уровень ${this.level} пройден!`
+                : `Уровень ${this.level} из ${this.levels.length} пройден!`,
+            w / 2, py + 120
+        );
 
         /*
          * 10. Сообщение.
@@ -1468,7 +2382,13 @@ class BridgesGameRenderer {
         this.ctx.font = '700 15px "Nunito", sans-serif';
         this.ctx.fillStyle = "#765E52";
 
-        if (this.level >= this.levels.length) {
+        if (this.endless) {
+            this.ctx.fillText(
+                `Следующий уровень: ${this.level + 1} · новых островов: ` +
+                `${2 * (this.expansionsDone + 1)}`,
+                w / 2, py + 145
+            );
+        } else if (this.level >= this.levels.length) {
             this.ctx.fillText("Вы прошли всю кампанию!", w / 2, py + 145);
         } else {
             this.ctx.fillText(`Следующий уровень: ${this.level + 1}`, w / 2, py + 145);
@@ -1510,60 +2430,139 @@ class BridgesGameRenderer {
                 button.x + button.width,
                 button.y + button.height
             ],
-            this.level >= this.levels.length ? "НАЧАТЬ ЗАНОВО" : "СЛЕДУЮЩИЙ УРОВЕНЬ",
+            this.endless
+                ? "РАСШИРИТЬ"
+                : (this.level >= this.levels.length
+                    ? "НАЧАТЬ ЗАНОВО"
+                    : "СЛЕДУЮЩИЙ УРОВЕНЬ"),
             true
         );
-
 
         this.ctx.restore();
     }
 
 
+  drawButtonBar() {
+      const ctx = this.ctx;
+      const y = this.viewportH;
+      const height = this.canvasH - y;
+
+      const gradient = ctx.createLinearGradient(0, y, 0, y + height);
+
+      gradient.addColorStop(0, "rgba(6, 44, 70, 0.72)");
+      gradient.addColorStop(1, "rgba(2, 24, 40, 0.92)");
+
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, y, this.canvasW, height);
+
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(this.canvasW, y + 0.5);
+      ctx.stroke();
+  }
+
+  drawZoomControls() {
+      const ctx = this.ctx;
+
+      const drawButton = (rect, label, hovered, active) => {
+          ctx.save();
+          ctx.globalAlpha = active ? 0.45 : 1;
+
+          this.drawRoundRect(
+              rect.x,
+              rect.y,
+              rect.w,
+              rect.h,
+              9,
+              hovered ? "rgba(255, 167, 38, 0.95)" : "rgba(62, 39, 25, 0.82)",
+              "rgba(246, 211, 150, 0.8)",
+              2
+          );
+
+          ctx.fillStyle = "#FFF3E0";
+          ctx.font = "700 20px Nunito, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1);
+          ctx.restore();
+      };
+
+      drawButton(
+          this.zoomInRect,
+          "+",
+          this.hoverZoomBtn === 'in',
+          this.zoom >= this.maxZoom - 0.001
+      );
+
+      drawButton(
+          this.zoomOutRect,
+          "−",
+          this.hoverZoomBtn === 'out',
+          this.zoom <= this.minZoom + 0.001
+      );
+
+      drawButton(
+          this.zoomResetRect,
+          "⟲",
+          this.hoverZoomBtn === 'reset',
+          false
+      );
+
+      // Текущий масштаб.
+      ctx.save();
+      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+      ctx.font = "700 12px Nunito, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(
+          `${Math.round(this.zoom * 100)}%`,
+          this.zoomInRect.x + this.zoomInRect.w / 2,
+          this.zoomResetRect.y + this.zoomResetRect.h + 6
+      );
+      ctx.restore();
+  }
+
   draw() {
-    this.ctx.clearRect(0, 0, this.canvasW, this.canvasH);
+    const ctx = this.ctx;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.canvasW, this.canvasH);
+
+    // Фон на всю площадь, включая нижнюю панель.
+    ctx.fillStyle = "#0284C7";
+    ctx.fillRect(0, 0, this.canvasW, this.canvasH);
+
+    // Мир рисуем с учётом приближения и сдвига.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, this.viewportW, this.viewportH);
+    ctx.clip();
+    ctx.translate(this.viewX, this.viewY);
+    ctx.scale(this.viewScale, this.viewScale);
 
     /*
       * 1. Вода — самый нижний слой.
+      *
+      * Статичная основа воды закэширована, поверх неё рисуется
+      * только лёгкая анимация ряби.
       */
-    this.drawTopDownWater();
+    this.drawWater();
 
     /*
-      * 2. Существующие мосты.
+      * 2. Мосты и острова — статичные кластеры.
       *
-      * Они должны находиться под островами,
-      * чтобы входящие в острова края мостов
-      * визуально уходили под землю.
+      * Слои перерисовываются только при изменении карты.
+      * В обычном кадре это несколько drawImage вместо сотен
+      * градиентов, дуг и разбора строковых ключей.
       */
-    for (const [edgeKey, count] of this.logic.bridges.entries()) {
-        const [k1, k2] = edgeKey.split('-');
-        const [r1, c1] = k1.split(',').map(Number);
-        const [r2, c2] = k2.split(',').map(Number);
-
-        const x1 = c1 * this.cellSize + this.offset;
-        const y1 = r1 * this.cellSize + this.offset;
-        const x2 = c2 * this.cellSize + this.offset;
-        const y2 = r2 * this.cellSize + this.offset;
-
-        this.drawMedievalBridge(x1, y1, x2, y2, count);
-    }
+    this.drawWorldChunks();
 
     /*
-      * 3. Острова.
-      *
-      * Острова находятся поверх мостов.
+      * 3. Динамическая подсветка наведения/выбора.
       */
-    for (const [key, target] of this.logic.islands.entries()) {
-        const [r, c] = key.split(',').map(Number);
-
-        const cx = c * this.cellSize + this.offset;
-        const cy = r * this.cellSize + this.offset;
-
-        const current = this.logic.getIslandBridgesCount([r, c]);
-        const isHovered = this.hoveredIsland && this.hoveredIsland[0] === r && this.hoveredIsland[1] === c;
-        const isSelected = this.selectedIsland && this.selectedIsland[0] === r && this.selectedIsland[1] === c;
-
-        this.drawCartoonIsland(cx, cy, target, current, isHovered, isSelected);
-    }
+    this.drawIslandHighlights();
 
     /*
       * 4. Предпросмотр будущего моста.
@@ -1622,10 +2621,16 @@ class BridgesGameRenderer {
     }
 
     /*
-      * 5. Кнопки.
+      * 5. Конец мирового слоя; нижняя панель и кнопки.
       */
+    ctx.restore();
+
+    this.drawButtonBar();
+
     this.drawWoodenButton(this.btn1Coords, "НОВАЯ КАРТА", this.btn1Hovered);
     this.drawWoodenButton(this.btn2Coords, "СБРОСИТЬ", this.btn2Hovered);
+
+    this.drawZoomControls();
 
     /*
       * 6. Экран победы — самый верхний слой.
