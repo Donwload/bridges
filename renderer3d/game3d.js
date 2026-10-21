@@ -3,7 +3,7 @@
  *
  * Собирает генератор (logic3d/spike.js), логику партии (logic3d/game.js)
  * и WebGL-рисование в одну живую сцену: сферы-острова, мосты-трубки,
- * поворот камеры, выбор острова и гизмо трёх осей.
+ * поворот камеры и перенос мостов перетаскиванием.
  *
  * Мир Z-up: координата решётки [x, y, z] — это и есть мировые X, Y, Z,
  * пол лежит в плоскости XY, а ось Z смотрит вверх.
@@ -32,13 +32,9 @@
   const { parseKey3d, MAX_BRIDGE_3D } = Core;
 
   const CELL = 1;
-  const ARM_LENGTH = 1.4;
 
-  const AXIS_DIRS = [
-    [1, 0, 0],
-    [0, 1, 0],
-    [0, 0, 1]
-  ];
+  // Меньше этого сдвига в пикселях — считаем нажатие кликом, а не переносом.
+  const LINK_THRESHOLD = 4;
 
   // Сколько островов просить у генератора для каждого размера куба.
   const SIZE_CONFIG = {
@@ -114,8 +110,10 @@
       this.logic = null;
       this.selectedKey = null;
       this.selectedCoord = null;
-      this.chosenAxis = null;
       this.candidates = [];
+
+      // Активный перенос моста: от какого острова тянем и куда навели.
+      this.link = null;
 
       this.labels = new Map();
 
@@ -656,6 +654,16 @@
           /* указателя нет — просто продолжаем */
         }
 
+        this.rect = canvas.getBoundingClientRect();
+
+        // Нажатие на остров начинает перенос моста: камера при этом стоит.
+        const hitKey = this._pickIsland(e.clientX, e.clientY);
+
+        if (hitKey) {
+          this._beginLink(hitKey, e.clientX, e.clientY);
+          return;
+        }
+
         this.drag.active = true;
         this.drag.moved = false;
         this.drag.lastX = e.clientX;
@@ -664,6 +672,11 @@
       });
 
       canvas.addEventListener("pointermove", (e) => {
+        if (this.link) {
+          this._moveLink(e.clientX, e.clientY);
+          return;
+        }
+
         if (!this.drag.active) return;
 
         const dx = e.clientX - this.drag.lastX;
@@ -678,14 +691,20 @@
         }
       });
 
-      const endDrag = (e) => {
+      const endDrag = () => {
+        if (this.link) {
+          this._endLink();
+          return;
+        }
+
         if (!this.drag.active) return;
+
+        const moved = this.drag.moved;
 
         this.drag.active = false;
 
-        if (!this.drag.moved) {
-          this._onClick(e.clientX, e.clientY);
-        }
+        // Короткий клик по пустому месту снимает выбор.
+        if (!moved) this._clearSelection();
       };
 
       canvas.addEventListener("pointerup", endDrag);
@@ -703,83 +722,110 @@
       canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
       global.addEventListener("keydown", (e) => {
-        // Скины доступны всегда: S листает, Esc закрывает панель.
+        // Скины доступны всегда: S листает, Esc закрывает панель и перенос.
         if (Input.is(e, "KeyS", "s")) {
           this._cycleSkin(1);
           return;
         }
 
-        if (Input.is(e, "Escape", "escape")) this._hideSkinPanel();
-
-        if (!this.selectedCoord) return;
-
-        if (Input.is(e, "KeyX", "x")) this._chooseAxis(0);
-        if (Input.is(e, "KeyY", "y")) this._chooseAxis(1);
-        if (Input.is(e, "KeyZ", "z")) this._chooseAxis(2);
-        if (Input.is(e, "Escape", "escape")) this._clearSelection();
+        if (Input.is(e, "Escape", "escape")) {
+          this._hideSkinPanel();
+          this._clearSelection();
+        }
       });
     }
 
-    _onClick(clientX, clientY) {
+    // ---------- перенос моста (drag & drop) ----------
+
+    /*
+     * Куда можно протянуть мост из острова: соседи по любой из трёх осей,
+     * с которыми линия свободна и пересечений с другими мостами нет.
+     */
+    _linkCandidates(coord) {
+      const keys = [];
+
+      for (let axis = 0; axis < 3; axis++) {
+        for (const entry of this.logic.reachableAlongAxis(coord, axis)) {
+          if (keys.indexOf(entry.key) >= 0) continue;
+          if (this.logic.canConnect(coord, entry.coord)) keys.push(entry.key);
+        }
+      }
+
+      return keys;
+    }
+
+    _beginLink(key, clientX, clientY) {
+      this.link = {
+        from: key,
+        wasSelected: this.selectedKey === key,
+        target: null,
+        pointer: { x: clientX, y: clientY },
+        startX: clientX,
+        startY: clientY,
+        moved: false
+      };
+
+      this._select(key);
+      this.candidates = this._linkCandidates(this.selectedCoord);
+    }
+
+    _moveLink(clientX, clientY) {
+      const link = this.link;
+
+      link.pointer = { x: clientX, y: clientY };
+      link.moved =
+        link.moved ||
+        Math.hypot(clientX - link.startX, clientY - link.startY) >
+          LINK_THRESHOLD;
+
       const hitKey = this._pickIsland(clientX, clientY);
 
-      if (hitKey) {
-        if (!this.selectedKey) {
-          this._select(hitKey);
-          return;
-        }
+      link.target =
+        hitKey && hitKey !== link.from && this.candidates.indexOf(hitKey) >= 0
+          ? hitKey
+          : null;
+    }
 
-        if (hitKey === this.selectedKey) {
-          this._clearSelection();
-          return;
-        }
+    _endLink() {
+      const link = this.link;
 
-        if (this.chosenAxis !== null && this.candidates.indexOf(hitKey) >= 0) {
-          const target = parseKey3d(hitKey);
-          const result = this.logic.cycleBridge(this.selectedCoord, target);
+      this.link = null;
 
-          if (result >= 0) this._afterChange();
-          return;
-        }
+      if (!link) return;
 
-        this._select(hitKey);
+      if (link.target) {
+        const result = this.logic.cycleBridge(
+          parseKey3d(link.from),
+          parseKey3d(link.target)
+        );
+
+        if (result >= 0) this._afterChange();
+
+        // Источник остаётся выбранным: с него удобно тянуть следующий мост.
+        this.candidates = this._linkCandidates(this.selectedCoord);
         return;
       }
 
-      if (this.selectedKey && this.chosenAxis === null) {
-        const axis = this._pickArm(clientX, clientY);
-
-        if (axis !== null) {
-          this._chooseAxis(axis);
-          return;
-        }
+      if (!link.moved && link.wasSelected) {
+        this._clearSelection();
+        return;
       }
 
-      this._clearSelection();
+      // Отпустили в пустоте: остров остаётся выбранным, цели подсвечены.
+      this.candidates = this._linkCandidates(this.selectedCoord);
     }
 
     _select(key) {
       this.selectedKey = key;
       this.selectedCoord = parseKey3d(key);
-      this.chosenAxis = null;
       this.candidates = [];
-    }
-
-    _chooseAxis(axis) {
-      this.chosenAxis = axis;
-
-      const reachable = this.logic.reachableAlongAxis(this.selectedCoord, axis);
-
-      this.candidates = reachable
-        .filter((entry) => this.logic.canConnect(this.selectedCoord, entry.coord))
-        .map((entry) => entry.key);
     }
 
     _clearSelection() {
       this.selectedKey = null;
       this.selectedCoord = null;
-      this.chosenAxis = null;
       this.candidates = [];
+      this.link = null;
     }
 
     _afterChange() {
@@ -794,8 +840,8 @@
       }
 
       // Отсеиваем цели, которые стали недостижимы после нового моста.
-      if (this.selectedCoord && this.chosenAxis !== null) {
-        this._chooseAxis(this.chosenAxis);
+      if (this.selectedCoord) {
+        this.candidates = this._linkCandidates(this.selectedCoord);
       }
     }
 
@@ -823,50 +869,25 @@
       return bestKey;
     }
 
-    _pickArm(clientX, clientY) {
-      if (!this.selectedCoord) return null;
+    /*
+     * Точка под курсором на плоскости, проходящей через остров
+     * перпендикулярно взгляду: за неё тянется «резинка» моста.
+     */
+    _pointerOnViewPlane(clientX, clientY, origin) {
+      const ndcX = ((clientX - this.rect.left) / this.rect.width) * 2 - 1;
+      const ndcY = 1 - ((clientY - this.rect.top) / this.rect.height) * 2;
+      const ray = RMath.rayFromNdc(this.invViewProj, ndcX, ndcY);
+      const v3 = RMath.v3;
+      const normal = v3.normalize(v3.sub(this.camera.target, this.camera.eyePos));
+      const denom = v3.dot(ray.dir, normal);
 
-      const px = clientX - this.rect.left;
-      const py = clientY - this.rect.top;
-      const base = this.worldOf(this.selectedCoord);
+      if (Math.abs(denom) < 1e-5) return null;
 
-      let bestAxis = null;
-      let bestDistance = 18;
+      const t = v3.dot(v3.sub(origin, ray.origin), normal) / denom;
 
-      for (let axis = 0; axis < 3; axis++) {
-        const dir = AXIS_DIRS[axis];
-        const tip = [
-          base[0] + dir[0] * ARM_LENGTH,
-          base[1] + dir[1] * ARM_LENGTH,
-          base[2] + dir[2] * ARM_LENGTH
-        ];
-        const a = this.project(base);
-        const b = this.project(tip);
+      if (!(t > 0)) return null;
 
-        if (!a || !b) continue;
-
-        const distance = this._distanceToSegment(px, py, a.x, a.y, b.x, b.y);
-
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestAxis = axis;
-        }
-      }
-
-      return bestAxis;
-    }
-
-    _distanceToSegment(px, py, ax, ay, bx, by) {
-      const dx = bx - ax;
-      const dy = by - ay;
-      const lengthSq = dx * dx + dy * dy;
-      const t = lengthSq > 0
-        ? RMath.clamp(((px - ax) * dx + (py - ay) * dy) / lengthSq, 0, 1)
-        : 0;
-      const cx = ax + t * dx;
-      const cy = ay + t * dy;
-
-      return Math.hypot(px - cx, py - cy);
+      return v3.add(ray.origin, v3.scale(ray.dir, t));
     }
 
     project(world) {
@@ -944,7 +965,7 @@
 
       this._drawBridges();
       this._drawIslands();
-      this._drawGizmo();
+      this._drawLinkPreview();
       this._drawEffects();
 
       this._updateLabels();
@@ -1011,6 +1032,10 @@
         if (key === this.selectedKey) {
           color = this.palette.islandSelected;
           highlight = 0.22;
+        } else if (this.link && key === this.link.target) {
+          // Цель под курсором светится ярче остальных подсказок.
+          color = this.palette.islandCandidate;
+          highlight = 0.35;
         } else if (this.candidates.indexOf(key) >= 0) {
           color = this.palette.islandCandidate;
           highlight = 0.1;
@@ -1060,32 +1085,39 @@
       });
     }
 
-    _drawGizmo() {
-      if (!this.selectedCoord) return;
+    /*
+     * Резинка от выбранного острова к курсору: показывает, какой мост
+     * сейчас тянут. Над подсвеченной целью линия прилипает к ней.
+     */
+    _drawLinkPreview() {
+      const link = this.link;
+
+      if (!link || !link.pointer || !link.moved) return;
+
+      const fromWorld = this.worldOf(parseKey3d(link.from));
+      const toWorld = link.target
+        ? this.worldOf(parseKey3d(link.target))
+        : this._pointerOnViewPlane(link.pointer.x, link.pointer.y, fromWorld);
+
+      if (!toWorld) return;
 
       const gl = this.gl;
       const mp = this.meshProgram;
 
       gl.useProgram(mp.program);
 
-      const base = this.worldOf(this.selectedCoord);
-      const colors = [this.palette.axisX, this.palette.axisY, this.palette.axisZ];
-
-      for (let axis = 0; axis < 3; axis++) {
-        const dir = AXIS_DIRS[axis];
-        const tip = [
-          base[0] + dir[0] * ARM_LENGTH,
-          base[1] + dir[1] * ARM_LENGTH,
-          base[2] + dir[2] * ARM_LENGTH
-        ];
-
-        RMath.modelTube(this.tmpModel, base, tip, 0.045);
-        RMath.normalFromModel(this.tmpNormal, this.tmpModel);
-        GL3D.drawMesh(
-          gl, mp, this.tubeMesh, this.tmpModel, this.tmpNormal,
-          colors[axis], this.chosenAxis === axis ? 0.35 : 0
-        );
-      }
+      RMath.modelTube(
+        this.tmpModel,
+        fromWorld,
+        toWorld,
+        link.target ? 0.06 : 0.045
+      );
+      RMath.normalFromModel(this.tmpNormal, this.tmpModel);
+      GL3D.drawMesh(
+        gl, mp, this.tubeMesh, this.tmpModel, this.tmpNormal,
+        link.target ? this.palette.islandCandidate : this.palette.bridge,
+        link.target ? 0.3 : 0.15
+      );
     }
 
     // ---------- подписи ----------
