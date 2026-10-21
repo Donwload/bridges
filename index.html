@@ -8,10 +8,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="hud/hud.css">
 </head>
-<body>
+<body data-mode="2d">
     <div class="app-wrapper">
         <header class="game-header">
+            <div class="mode-switch-slot" id="modeSwitch"></div>
+
             <button
                 id="skinButton"
                 class="skin-button"
@@ -45,6 +48,7 @@
             <span>✋ Перетаскивание воды или СКМ — сдвиг карты</span>
             <span>⌨️ + / − / 0 — масштаб</span>
             <span>📱 На телефоне — коснитесь моста, чтобы удалить</span>
+            <span>🧊 «2D / 3D» в шапке — объёмный режим</span>
         </div>
     </div>
 
@@ -178,8 +182,15 @@
     <script src="renderer/bridges.js"></script>
     <script src="renderer/ui.js"></script>
     <script src="renderer.js"></script>
+    <script src="hud/hud.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // Общий HUD: переключатель 2D/3D и отметка режима на <body>.
+            if (window.BridgesHUD) {
+                window.BridgesHUD.applyMode('2d');
+                window.BridgesHUD.mountSwitch('#modeSwitch', '2d');
+            }
+
             const logic = new BridgesGameLogic(7);
             const renderer = new BridgesGameRenderer('gameCanvas', logic);
 

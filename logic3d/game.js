@@ -161,6 +161,49 @@
     }
 
     /*
+     * Слепок карты для передачи в Worker: только данные, без функций.
+     */
+    boardSnapshot() {
+      const bridges = new Map();
+
+      for (const [edgeKey, entry] of this.bridges) {
+        bridges.set(edgeKey, entry.count);
+      }
+
+      return {
+        size: this.size,
+        islands: new Map(this.islands),
+        bridges
+      };
+    }
+
+    /*
+     * Применить готовое расширение — например, посчитанное в Web Worker.
+     *
+     * Проверка «карта решена» остаётся здесь: воркер не должен двигать
+     * непройденную партию, даже если пришлёт валидное на вид поле.
+     */
+    applyExpansion(board) {
+      if (!board || !board.islands || !board.bridges) return false;
+      if (!Number.isInteger(board.size) || board.size <= 0) return false;
+      if (this.islands.size === 0 || this.bridges.size === 0) return false;
+
+      for (const key of this.islandKeys) {
+        if (this.totals.get(key) !== this.islands.get(key)) return false;
+      }
+
+      // Новое поле не меньше старого, все старые мосты на месте.
+      if (this.size !== null && board.size < this.size) return false;
+      if (board.islands.size < this.islands.size) return false;
+      if (board.bridges.size !== this.bridges.size) return false;
+
+      this.size = board.size;
+      this._replaceBoard(board.islands, board.bridges);
+
+      return true;
+    }
+
+    /*
      * Расширение пройденной карты: куб растёт, старые острова сдвигаются
      * в центр, вокруг появляются новые листья. Старые мосты остаются
      * у игрока, а числа вырастают — новые острова надо достроить самому.
@@ -201,10 +244,7 @@
 
       if (!board) return false;
 
-      this.size = board.size;
-      this._replaceBoard(board.islands, board.bridges);
-
-      return true;
+      return this.applyExpansion(board);
     }
 
     /*

@@ -167,12 +167,12 @@
         flake.y += flake.vy * step;
         flake.z += flake.vz * step;
 
-        // Гравитация тянет вниз, вращение — вокруг своей оси.
-        flake.vy -= flake.gravity * step;
+        // Гравитация тянет вниз по Z (вертикаль), вращение — вокруг своей оси.
+        flake.vz -= flake.gravity * step;
         flake.angle += flake.spin * step;
         flake.life += step;
 
-        if (flake.life >= flake.maxLife || flake.y <= flake.floor) {
+        if (flake.life >= flake.maxLife || flake.z <= flake.floor) {
           this.confetti.splice(i, 1);
         }
       }
@@ -195,11 +195,11 @@
 
       this.sparkles.push({
         x: world[0] + (rng() - 0.5) * 0.46,
-        y: world[1] + (rng() - 0.5) * 0.22 + 0.2,
-        z: world[2] + (rng() - 0.5) * 0.46,
+        y: world[1] + (rng() - 0.5) * 0.46,
+        z: world[2] + (rng() - 0.5) * 0.12 + 0.2,
         vx: (rng() - 0.5) * 0.014,
-        vy: 0.006 + rng() * 0.012,
-        vz: (rng() - 0.5) * 0.014,
+        vy: (rng() - 0.5) * 0.014,
+        vz: 0.006 + rng() * 0.012,
         size: 0.04 + rng() * 0.045,
         life: 0,
         maxLife: 22 + rng() * 24
@@ -227,16 +227,16 @@
         const axis = normalize3([rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1]);
         const basis = flakeBasis(axis);
         const x = origin[0] + (rng() - 0.5) * spread;
-        const y = origin[1] + (rng() - 0.5) * spread * 0.7;
-        const z = origin[2] + (rng() - 0.5) * spread;
+        const y = origin[1] + (rng() - 0.5) * spread;
+        const z = origin[2] + (rng() - 0.5) * spread * 0.7;
 
         this.confetti.push({
           x,
           y,
           z,
           vx: (x - origin[0]) * 0.02 + (rng() - 0.5) * 0.03,
-          vy: 0.03 + rng() * 0.05,
-          vz: (z - origin[2]) * 0.02 + (rng() - 0.5) * 0.03,
+          vy: (y - origin[1]) * 0.02 + (rng() - 0.5) * 0.03,
+          vz: 0.03 + rng() * 0.05,
           gravity: 0.0018 + rng() * 0.0016,
           angle: rng() * TWO_PI,
           spin: (rng() - 0.5) * 0.5,
@@ -245,7 +245,7 @@
           size: 0.09 + rng() * 0.11,
           life: 0,
           maxLife: 70 + rng() * 110,
-          floor: origin[1] - spread * 2.2,
+          floor: origin[2] - spread * 2.2,
           color: colors[Math.floor(rng() * colors.length)] || colors[0]
         });
       }
@@ -361,13 +361,12 @@
         const y =
           center[1] +
           particle.ny * extent * 0.95 +
-          Math.cos(time * particle.speed * 0.7 + particle.phase * 1.3) *
-            swing *
-            0.6;
+          Math.cos(time * particle.speed * 0.7 + particle.phase * 1.3) * swing;
+        // Вертикаль — Z: вверх-вниз частицы ходят слабее, чем вбок.
         const z =
           center[2] +
           particle.nz * extent * 0.95 +
-          Math.cos(time * particle.speed * 0.9 + particle.phase) * swing;
+          Math.cos(time * particle.speed * 0.9 + particle.phase) * swing * 0.6;
 
         const pulse = 0.5 + 0.5 * Math.sin(time * particle.pulse + particle.phase);
         const alpha = clamp01(particle.alpha * (0.35 + 0.65 * pulse));

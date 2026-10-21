@@ -5,6 +5,9 @@
  * и WebGL-рисование в одну живую сцену: сферы-острова, мосты-трубки,
  * поворот камеры, выбор острова и гизмо трёх осей.
  *
+ * Мир Z-up: координата решётки [x, y, z] — это и есть мировые X, Y, Z,
+ * пол лежит в плоскости XY, а ось Z смотрит вверх.
+ *
  * Публикует Bridges3DApp в window.
  */
 (function (global) {
@@ -15,15 +18,18 @@
   const Core = global.BridgesSpike3D;
   const Skins = global.BridgesSkins3D;
   const Effects = global.BridgesEffects3D;
+  const Generators = global.BridgesGenerator3D;
+  const Input = global.BridgesInput;
 
-  if (!RMath || !GL3D || !Core || !Skins || !Effects) {
+  if (!RMath || !GL3D || !Core || !Skins || !Effects || !Generators || !Input) {
     throw new Error(
       "Bridges3DApp: сначала подключите renderer3d/math.js, renderer3d/gl.js, " +
-      "renderer3d/skins.js, renderer3d/effects3d.js и logic3d/spike.js."
+      "renderer3d/skins.js, renderer3d/effects3d.js, renderer3d/input.js, " +
+      "logic3d/spike.js и logic3d/generator.js."
     );
   }
 
-  const { key3d, parseKey3d, mulberry32, generateBoard3d, MAX_BRIDGE_3D } = Core;
+  const { parseKey3d, MAX_BRIDGE_3D } = Core;
 
   const CELL = 1;
   const ARM_LENGTH = 1.4;
@@ -54,7 +60,7 @@
   // Цвета сцены теперь приходят из скина: renderer3d/skins.js.
   // Дефолтная палитра скина `default` совпадает с прежней жёсткой.
 
-  const LIGHT_DIR = new Float32Array([0.35, 0.85, 0.4]);
+  const LIGHT_DIR = new Float32Array([0.35, 0.4, 0.85]);
 
   class Bridges3DApp {
     constructor(options) {
@@ -80,9 +86,23 @@
       this.skinId = Skins.readSavedSkin3D();
       this.skin = Skins.getSkin3D(this.skinId);
       this.palette = Skins.toFloatPalette(this.skin);
+      this._syncSkinAttribute();
 
       this.effects = new Effects();
       this.effects.setLook(this.palette, this.skin.confetti);
+
+      /*
+       * Генератор полей: если Worker доступен, тяжёлый подбор уходит в
+       * отдельный поток. Без Worker (file://, старый браузер) он сам
+       * переключается на синхронный путь, поэтому игра работает всегда.
+       */
+      this.generator = new Generators({
+        workerUrl: options.workerUrl || "logic3d/worker.js"
+      });
+
+      this.requestSeq = 0;
+      this.pending = false;
+      this._expanding = false;
 
       this.lastFrameTime = 0;
 
@@ -126,34 +146,94 @@
 
     // ---------- уровень ----------
 
+    /*
+     * Параметры генерации для размера поля. Seed считается здесь, чтобы
+     * запрос в Worker состоял только из данных и повторялся в тестах.
+     */
+    _boardOptions(size) {
+      const target = Math.round(RMath.clamp(size || this.size, 3, 6));
+      const range = SIZE_CONFIG[target] || SIZE_CONFIG[3];
+
+      return {
+        size: target,
+        minIslands: range.min,
+        maxIslands: range.max,
+        seed: (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0
+      };
+    }
+
+    /*
+     * Запасное поле, если генератор не справился: маленький куб, который
+     * находится почти всегда.
+     */
+    _fallbackOptions(options) {
+      return {
+        size: 3,
+        minIslands: 4,
+        maxIslands: 6,
+        seed: options.seed
+      };
+    }
+
+    /*
+     * Синхронный уровень: первый кадр и режим без Worker.
+     */
     newLevel(size) {
-      this.size = Math.round(RMath.clamp(size || this.size, 3, 6));
+      const options = this._boardOptions(size);
+      const board =
+        this.generator.generateSync(options) ||
+        this.generator.generateSync(this._fallbackOptions(options));
 
-      const range = SIZE_CONFIG[this.size] || SIZE_CONFIG[3];
-      const rng = mulberry32(
-        (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0
-      );
+      if (!board) return false;
 
-      let board = null;
+      return this._applyBoard(board);
+    }
 
-      for (let attempt = 0; attempt < 3 && !board; attempt++) {
-        board = generateBoard3d({
-          size: this.size,
-          minIslands: range.min,
-          maxIslands: range.max,
-          rng
-        });
+    /*
+     * Уровень через Worker: пока поле подбирается, интерфейс живой.
+     * Ответы устаревших запросов отбрасываются по номеру.
+     */
+    requestLevel(size) {
+      const options = this._boardOptions(size);
+
+      if (!this.generator.hasWorker) {
+        return Promise.resolve(this.newLevel(options.size));
       }
 
-      if (!board) {
-        board = generateBoard3d({
-          size: 3,
-          minIslands: 4,
-          maxIslands: 6,
-          rng
-        });
-      }
+      const requestId = ++this.requestSeq;
 
+      this._setPending(true, this._sizeLabel(options.size));
+
+      return this.generator
+        .generate(options)
+        .then((board) => {
+          if (requestId !== this.requestSeq) return false;
+
+          const ready =
+            board || this.generator.generateSync(this._fallbackOptions(options));
+
+          return ready ? this._applyBoard(ready) : false;
+        })
+        .catch(() => {
+          // Worker не ответил — считаем как раньше, в этом потоке.
+          return requestId === this.requestSeq
+            ? this.newLevel(options.size)
+            : false;
+        })
+        .then((result) => {
+          if (requestId === this.requestSeq) {
+            this._expanding = false;
+            this._setPending(false);
+          }
+
+          return result;
+        });
+    }
+
+    /*
+     * Применить сгенерированное поле: сброс партии, меши, камера, подписи.
+     */
+    _applyBoard(board) {
       this.size = board.size;
       this.level = 1;
       this.expansionsDone = 0;
@@ -163,10 +243,8 @@
         MAX_BRIDGE_3D,
         this.size
       );
-      this.selectedKey = null;
-      this.selectedCoord = null;
-      this.chosenAxis = null;
-      this.candidates = [];
+
+      this._clearSelection();
 
       this.gridMesh = this._buildGrid();
       this.boxMesh = this._buildBox();
@@ -181,6 +259,27 @@
       // Новый уровень — чистые эффекты: конфетти прошлой победы не тащим.
       this.effects.reset();
       this.effects.syncAmbient(this.skin.ambient, [0, 0, 0], this._extent());
+
+      return true;
+    }
+
+    _sizeLabel(size) {
+      return "Генерация поля " + size + "×" + size + "×" + size + "…";
+    }
+
+    /*
+     * Индикатор занятости: текст в статусе и курсор ожидания.
+     * Поле при этом остаётся на экране — это не блокирующая модалка.
+     */
+    _setPending(active, text) {
+      this.pending = Boolean(active);
+
+      if (global.document && global.document.body) {
+        global.document.body.dataset.pending = this.pending ? "1" : "";
+      }
+
+      if (active && text && this.statusEl) this.statusEl.textContent = text;
+      if (active) this._hideBanner();
     }
 
     /*
@@ -209,9 +308,7 @@
 
       Skins.saveSkin3D(next);
 
-      if (global.document && global.document.body) {
-        global.document.body.dataset.skin = next;
-      }
+      this._syncSkinAttribute();
 
       if (this.gridMesh) this.gridMesh = this._buildGrid();
       if (this.boxMesh) this.boxMesh = this._buildBox();
@@ -219,6 +316,16 @@
       this._syncSkinUI();
 
       return next;
+    }
+
+    /*
+     * Скин отмечается на <body>: по этому атрибуту HUD и страница выбирают
+     * палитру. Нужен уже при загрузке, а не только после смены скина.
+     */
+    _syncSkinAttribute() {
+      if (global.document && global.document.body) {
+        global.document.body.dataset.skin = this.skinId;
+      }
     }
 
     /*
@@ -344,16 +451,12 @@
     }
 
     /*
-     * Продолжение после победы: куб растёт, старые острова сдвигаются
-     * в центр, вокруг появляются новые листья. Старые мосты остаются,
-     * новые острова игрок достраивает сам.
-     *
-     * Куб растёт до мягкого предела, а если внутри стало тесно — до
-     * жёсткого: иначе бесконечная партия упёрлась бы в потолок, где
-     * новые листья уже некуда ставить.
+     * Планы расширения: куб растёт до мягкого предела, а если внутри
+     * стало тесно — до жёсткого. Последняя попытка — всего один остров.
+     * Цепочка уезжает в Worker целиком, чтобы не делать round-trip на
+     * каждый план.
      */
-    expandLevel() {
-      const size = this.logic.size;
+    _expansionPlans(size) {
       const addIslands = expansionIslands(this.expansionsDone);
       const canGrow = size + 2 <= HARD_MAX_SIZE_3D;
 
@@ -376,29 +479,90 @@
       // Последняя попытка: всего один остров, куда угодно.
       addPlan(1, canGrow ? 2 : 0);
 
-      let ok = false;
+      return plans;
+    }
 
+    /*
+     * Продолжение после победы. Расширяется только решённая карта;
+     * цепочка планов считается в Worker, интерфейс не замирает.
+     */
+    expandLevel() {
+      if (!this.logic || this._expanding) return Promise.resolve(false);
+      if (!this.logic.isSolved()) return Promise.resolve(false);
+
+      const plans = this._expansionPlans(this.logic.size);
+
+      if (!this.generator.hasWorker) {
+        return Promise.resolve(this._expandSync(plans));
+      }
+
+      const requestId = ++this.requestSeq;
+
+      this._expanding = true;
+      this._setPending(true, "Расширяем карту…");
+
+      return this.generator
+        .expand(this.logic.boardSnapshot(), {
+          plans,
+          maxBridgeCount: MAX_BRIDGE_3D
+        })
+        .then((board) => {
+          if (requestId !== this.requestSeq) return false;
+
+          if (!board || !this.logic.applyExpansion(board)) {
+            this._reportExpandFailure();
+            return false;
+          }
+
+          this._afterExpansion();
+          return true;
+        })
+        .catch(() => {
+          // Worker не ответил — доигрываем цепочку в этом потоке.
+          return requestId === this.requestSeq ? this._expandSync(plans) : false;
+        })
+        .then((result) => {
+          if (requestId === this.requestSeq) {
+            this._expanding = false;
+            this._setPending(false);
+          }
+
+          return result;
+        });
+    }
+
+    /*
+     * Синхронная цепочка планов — запасной путь без Worker.
+     */
+    _expandSync(plans) {
       for (const plan of plans) {
         // При отказе состояние партии не меняется, поэтому можно
         // спокойно пробовать следующий вариант.
-        ok = this.logic.expandLevel({
-          size,
-          growth: plan.growth,
-          addIslands: plan.addIslands
-        });
+        const ok = this.logic.expandLevel(
+          Object.assign({ size: this.logic.size }, plan)
+        );
 
-        if (ok) break;
-      }
-
-      if (!ok) {
-        if (this.statusEl) {
-          this.statusEl.textContent =
-            "Не удалось расширить карту. Нажмите ещё раз.";
+        if (ok) {
+          this._afterExpansion();
+          return true;
         }
-
-        return false;
       }
 
+      this._reportExpandFailure();
+      return false;
+    }
+
+    _reportExpandFailure() {
+      if (this.statusEl) {
+        this.statusEl.textContent =
+          "Не удалось расширить карту. Нажмите ещё раз.";
+      }
+    }
+
+    /*
+     * Общая часть после удачного расширения: меши, камера, подписи, эффекты.
+     */
+    _afterExpansion() {
       this.size = this.logic.size;
       this.level++;
       this.expansionsDone++;
@@ -416,8 +580,6 @@
       // Карта выросла — эффекты переезжают в новый центр куба.
       this.effects.reset();
       this.effects.syncAmbient(this.skin.ambient, [0, 0, 0], this._extent());
-
-      return true;
     }
 
     worldOf(coord) {
@@ -433,15 +595,17 @@
     _buildGrid() {
       const half = (this.size - 1) / 2;
       const extent = half + 0.7;
-      const y = -extent;
       const [r, g, b] = this.palette.grid;
       const vertices = [];
 
+      // Пол — плоскость XY под кубом: вертикаль Z, поэтому сетка на z = -extent.
+      const z = -extent;
+
       for (let i = -half; i <= half; i++) {
-        vertices.push(-extent, y, i * CELL, r, g, b);
-        vertices.push(extent, y, i * CELL, r, g, b);
-        vertices.push(i * CELL, y, -extent, r, g, b);
-        vertices.push(i * CELL, y, extent, r, g, b);
+        vertices.push(-extent, i * CELL, z, r, g, b);
+        vertices.push(extent, i * CELL, z, r, g, b);
+        vertices.push(i * CELL, -extent, z, r, g, b);
+        vertices.push(i * CELL, extent, z, r, g, b);
       }
 
       return GL3D.createLines(this.gl, vertices);
@@ -540,19 +704,19 @@
 
       global.addEventListener("keydown", (e) => {
         // Скины доступны всегда: S листает, Esc закрывает панель.
-        if (e.key === "s" || e.key === "S") {
+        if (Input.is(e, "KeyS", "s")) {
           this._cycleSkin(1);
           return;
         }
 
-        if (e.key === "Escape") this._hideSkinPanel();
+        if (Input.is(e, "Escape", "escape")) this._hideSkinPanel();
 
         if (!this.selectedCoord) return;
 
-        if (e.key === "x" || e.key === "X") this._chooseAxis(0);
-        if (e.key === "y" || e.key === "Y") this._chooseAxis(1);
-        if (e.key === "z" || e.key === "Z") this._chooseAxis(2);
-        if (e.key === "Escape") this._clearSelection();
+        if (Input.is(e, "KeyX", "x")) this._chooseAxis(0);
+        if (Input.is(e, "KeyY", "y")) this._chooseAxis(1);
+        if (Input.is(e, "KeyZ", "z")) this._chooseAxis(2);
+        if (Input.is(e, "Escape", "escape")) this._clearSelection();
       });
     }
 
@@ -799,7 +963,9 @@
         const w2 = this.worldOf(entry.meta.p2);
 
         if (entry.count >= 2) {
-          const perp = (entry.meta.axis + 1) % 3;
+          // Пара трубок расходится вбок: перпендикуляр берём горизонтальный
+          // (X или Y), чтобы мосты не висели один над другим — Z вертикальна.
+          const perp = entry.meta.axis === 0 ? 1 : 0;
 
           for (const sign of [-1, 1]) {
             const offset = [0, 0, 0];

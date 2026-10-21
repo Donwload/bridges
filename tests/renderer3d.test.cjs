@@ -14,6 +14,7 @@ const assert = require("node:assert/strict");
 
 const Skins = require("../renderer3d/skins.js");
 const Effects = require("../renderer3d/effects3d.js");
+const Input = require("../renderer3d/input.js");
 
 const { mulberry32 } = require("../logic3d/spike.js");
 
@@ -189,7 +190,7 @@ test("эффекты: конфетти запускается один раз и
     assert.ok(isColor(flake.color), "цвет щепки");
     assert.ok(allowed.has(flake.color.join(",")), "цвет из палитры скина");
     assert.ok(flake.maxLife > 0);
-    assert.ok(flake.y > flake.floor);
+    assert.ok(flake.z > flake.floor);
   }
 });
 
@@ -198,13 +199,13 @@ test("эффекты: конфетти живёт ограниченное вр�
 
   effects.startConfetti([0, 0, 0], 1);
 
-  const startY = effects.confetti.map((flake) => flake.y);
+  const startZ = effects.confetti.map((flake) => flake.z);
   const startLife = effects.confetti[0].life;
 
   effects.update(1 / 60);
 
   assert.ok(effects.confetti[0].life > startLife, "время идёт");
-  assert.notEqual(effects.confetti[0].y, startY[0], "частица движется");
+  assert.notEqual(effects.confetti[0].z, startZ[0], "частица движется");
 
   // Полминуты кадров — от залпа не должно остаться ничего.
   for (let i = 0; i < 1800; i++) effects.update(1 / 60);
@@ -227,7 +228,7 @@ test("эффекты: искры только над собранными ост
 
   assert.ok(sparkle.maxLife > 0);
   assert.ok(sparkle.size > 0);
-  assert.ok(sparkle.y > world[1], "искра появляется над центром острова");
+  assert.ok(sparkle.z > world[2], "искра появляется над центром острова");
 
   for (let i = 0; i < Effects.LIMITS.MAX_SPARKLES * 4; i++) {
     effects.maybeSpawnSparkle(world, true, 1);
@@ -235,11 +236,11 @@ test("эффекты: искры только над собранными ост
 
   assert.equal(effects.sparkles.length, Effects.LIMITS.MAX_SPARKLES);
 
-  // Искры поднимаются вверх и исчезают.
-  const beforeY = effects.sparkles[0].y;
+  // Искры поднимаются вверх (по Z) и исчезают.
+  const beforeZ = effects.sparkles[0].z;
 
   effects.update(1 / 60);
-  assert.ok(effects.sparkles[0].y > beforeY, "искра поднимается");
+  assert.ok(effects.sparkles[0].z > beforeZ, "искра поднимается");
 
   for (let i = 0; i < 400; i++) effects.update(1 / 60);
 
@@ -336,4 +337,43 @@ test("эффекты: детерминированность при одинак
 
   c.startConfetti([0, 0, 0], 2);
   assert.notDeepEqual(c.confetti[0].x, a.confetti[0].x);
+});
+
+test("эффекты: гравитация конфетти направлена вниз по Z", () => {
+  const effects = makeEffects(13);
+
+  effects.startConfetti([0, 0, 0], 1);
+
+  const flake = effects.confetti[0];
+  const vz = flake.vz;
+
+  // Пол заведомо ниже точки спавна: конфетти умирает, упав на него.
+  assert.ok(flake.floor < flake.z);
+
+  effects.update(1 / 60);
+
+  assert.ok(flake.vz < vz, "скорость по Z уменьшается — тянет вниз");
+  assert.ok(flake.z < 0.7, "вертикальный разброс залпа в пределах куба");
+});
+
+test("горячие клавиши: срабатывают по физической клавише в любой раскладке", () => {
+  // Русская раскладка: та же клавиша присылает другой символ, code — прежний.
+  assert.equal(Input.is({ code: "KeyX", key: "ч" }, "KeyX", "x"), true);
+  assert.equal(Input.is({ code: "KeyY", key: "н" }, "KeyY", "y"), true);
+  assert.equal(Input.is({ code: "KeyZ", key: "я" }, "KeyZ", "z"), true);
+  assert.equal(Input.is({ code: "KeyS", key: "ы" }, "KeyS", "s"), true);
+
+  // Чужая физическая клавиша не срабатывает, даже если символ совпал.
+  assert.equal(Input.is({ code: "KeyZ", key: "я" }, "KeyX", "x"), false);
+  assert.equal(Input.is({ code: "Escape", key: "Escape" }, "Escape", "escape"), true);
+
+  // Синтетическое событие без code падает на key, регистр не важен.
+  assert.equal(Input.is({ key: "X" }, "KeyX", "x"), true);
+  assert.equal(Input.is({ key: "x" }, "KeyX", "x"), true);
+  assert.equal(Input.is({ key: "ч" }, "KeyX", "x"), false);
+
+  // Пустые и неопознанные события обработчик не ломают.
+  assert.equal(Input.is(null, "KeyX", "x"), false);
+  assert.equal(Input.is({}, "KeyX", "x"), false);
+  assert.equal(Input.is({ code: "Unidentified", key: "s" }, "KeyS", "s"), true);
 });

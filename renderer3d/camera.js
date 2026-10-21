@@ -1,6 +1,7 @@
 /*
  * Орбитальная камера для 3D-каркаса.
  *
+ * Мир Z-up: пол — плоскость XY, вертикаль — ось Z (как в CAD и Blender).
  * Поворот вокруг вертикальной оси (yaw) и подъём (pitch), облёт цели на
  * фиксированном расстоянии. Публикует OrbitCamera в window.
  */
@@ -29,17 +30,18 @@
     eye() {
       const cosPitch = Math.cos(this.pitch);
 
+      // Yaw крутит камеру в плоскости пола, pitch поднимает по Z.
       return [
         this.target[0] + this.distance * cosPitch * Math.sin(this.yaw),
-        this.target[1] + this.distance * Math.sin(this.pitch),
-        this.target[2] + this.distance * cosPitch * Math.cos(this.yaw)
+        this.target[1] + this.distance * cosPitch * Math.cos(this.yaw),
+        this.target[2] + this.distance * Math.sin(this.pitch)
       ];
     }
 
     update(aspect) {
       this.eyePos = this.eye();
 
-      RMath.lookAt(this._view, this.eyePos, this.target, [0, 1, 0]);
+      RMath.lookAt(this._view, this.eyePos, this.target, [0, 0, 1]);
       RMath.perspective(this._proj, this.fov, aspect, this.near, this.far);
       RMath.multiply(this.viewProj, this._proj, this._view);
 

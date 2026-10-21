@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Мосты 3D — каркас</title>
+<title>Мосты 3D — объёмные мосты</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root { color-scheme: dark; }
 
@@ -29,6 +32,9 @@
   }
 
   #gl:active { cursor: grabbing; }
+
+  /* Пока идёт генерация в Worker, поле остаётся на экране. */
+  body[data-pending="1"] #gl { cursor: progress; }
 
   #labels {
     position: absolute;
@@ -67,52 +73,7 @@
     background: rgba(28, 74, 116, 0.85);
   }
 
-  #hud {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding: 10px 14px;
-    background: linear-gradient(180deg, rgba(8, 16, 27, 0.92), rgba(8, 16, 27, 0));
-    pointer-events: none;
-  }
-
-  #hud .brand {
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-    color: #ffd98a;
-    pointer-events: auto;
-  }
-
-  #hud .status {
-    font-size: 13px;
-    color: #a8bccf;
-    margin-right: auto;
-    pointer-events: auto;
-  }
-
-  #hud button {
-    pointer-events: auto;
-    border: 1px solid rgba(140, 180, 220, 0.35);
-    background: rgba(20, 40, 62, 0.85);
-    color: #dbe8f5;
-    font: inherit;
-    font-size: 13px;
-    padding: 6px 12px;
-    border-radius: 9px;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
-  }
-
-  #hud button:hover {
-    background: rgba(34, 66, 98, 0.95);
-    border-color: rgba(160, 205, 245, 0.6);
-  }
+  /* Верхняя панель HUD и переключатель 2D/3D — в hud/hud.css. */
 
   #hint {
     position: fixed;
@@ -277,8 +238,9 @@
     background: #140d0d;
   }
 </style>
+<link rel="stylesheet" href="hud/hud.css">
 </head>
-<body>
+<body data-hud="overlay" data-mode="3d">
 
 <div id="stage">
   <canvas id="gl"></canvas>
@@ -286,13 +248,13 @@
 </div>
 
 <div id="hud">
+  <div class="mode-switch-slot" id="modeSwitch"></div>
   <span class="brand">Мосты&nbsp;3D</span>
   <span class="status" id="status">…</span>
-  <button id="btn-easier" type="button">Проще</button>
-  <button id="btn-harder" type="button">Сложнее</button>
-  <button id="btn-new" type="button">Новая карта</button>
-  <button id="btn-skin" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="skin-panel">Скин</button>
-  <a href="index.html"><button type="button">2D-режим</button></a>
+  <button id="btn-easier" class="hud-btn" type="button">Проще</button>
+  <button id="btn-harder" class="hud-btn" type="button">Сложнее</button>
+  <button id="btn-new" class="hud-btn is-primary" type="button">Новая карта</button>
+  <button id="btn-skin" class="hud-btn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="skin-panel">Скин</button>
 </div>
 
 <div id="skin-panel" class="hidden" role="dialog" aria-label="Скин сцены" aria-hidden="true">
@@ -330,7 +292,8 @@
   <b>клик по подсвеченной сфере</b> — поставить мост (0→1→2→0) ·
   <b>перетаскивание</b> — поворот · <b>колесо</b> — приближение ·
   <b>«Расширить карту»</b> после победы — следующий уровень ·
-  <b>S</b> или кнопка «Скин» — палитра и эффекты
+  <b>S</b> или кнопка «Скин» — палитра и эффекты ·
+  <b>2D / 3D</b> — сменить вид
 </div>
 
 <div id="banner" class="hidden">
@@ -345,16 +308,28 @@
 </div>
 
 <script src="logic3d/spike.js"></script>
+<script src="logic3d/generator.js"></script>
 <script src="logic3d/game.js"></script>
 <script src="renderer3d/math.js"></script>
 <script src="renderer3d/gl.js"></script>
 <script src="renderer3d/camera.js"></script>
 <script src="renderer3d/skins.js"></script>
 <script src="renderer3d/effects3d.js"></script>
+<script src="renderer3d/input.js"></script>
 <script src="renderer3d/game3d.js"></script>
+<script src="hud/hud.js"></script>
 <script>
   (function () {
     "use strict";
+
+    /*
+     * Общий HUD: переключатель 2D/3D и отметка текущего режима на <body>.
+     * Ставим до создания приложения, чтобы панель была на месте сразу.
+     */
+    if (window.BridgesHUD) {
+      window.BridgesHUD.applyMode("3d");
+      window.BridgesHUD.mountSwitch("#modeSwitch", "3d");
+    }
 
     let app = null;
 
@@ -375,22 +350,48 @@
       return;
     }
 
+    /*
+     * Уровни запрашиваются через requestLevel: поле подбирается в Worker,
+     * поэтому кнопки не замораживают страницу на больших размерах.
+     */
     document.getElementById("btn-new").addEventListener("click", function () {
-      app.newLevel(app.size);
+      app.requestLevel(app.size);
     });
 
     document.getElementById("btn-harder").addEventListener("click", function () {
-      app.newLevel(Math.min(6, app.size + 1));
+      app.requestLevel(Math.min(6, app.size + 1));
     });
 
     document.getElementById("btn-easier").addEventListener("click", function () {
-      app.newLevel(Math.max(3, app.size - 1));
+      app.requestLevel(Math.max(3, app.size - 1));
     });
 
     // Продолжение после победы: куб растёт, добавляются новые острова.
     document.getElementById("btn-expand").addEventListener("click", function () {
+      // Ошибка расширения уже пишется в статус самим приложением.
       app.expandLevel();
     });
+
+    /*
+     * Панель скинов всегда раскрывается под HUD: на узких экранах
+     * верхняя панель переносится на вторую строку и становится выше.
+     */
+    (function () {
+      const bar = document.getElementById("hud");
+      const panel = document.getElementById("skin-panel");
+      const skinButton = document.getElementById("btn-skin");
+
+      if (!bar || !panel) return;
+
+      const placePanel = function () {
+        panel.style.top =
+          Math.round(bar.getBoundingClientRect().bottom + 8) + "px";
+      };
+
+      if (skinButton) skinButton.addEventListener("click", placePanel);
+
+      window.addEventListener("resize", placePanel);
+    })();
 
     // Для отладки из консоли и будущих тестов.
     window.app3d = app;
