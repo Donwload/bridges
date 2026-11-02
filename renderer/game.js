@@ -25,24 +25,62 @@
    * Между одной парой островов допустимо не более двух мостов.
    */
   getDoubleChance() {
+      // Фиксированная карта берёт вероятность из своего профиля.
+      if (this.playMode === 'fixed') {
+          const modes = window.BridgesModes2D;
+
+          return modes
+              ? modes.fixedProfile(this.difficulty, this.fixedSize).doubleChance
+              : 0.45;
+      }
+
       return 0.15 + 0.6 * this.getDifficulty();
   },
 
   generateNewLevel(level = this.level) {
-    // Для бесконечного режима уровни за пределами кампании
-    // генерируются на текущем размере поля.
-    const profile = this.levels[level - 1] ?? {
-        minIslands: 8,
-        maxIslands: 12,
-        gridSize: this.gridSize,
-        name: "🧭 Новые земли"
-    };
+    const modes = window.BridgesModes2D;
+    const fixed = this.playMode === 'fixed';
+
+    let profile;
+    let doubleChance;
+    let dense = false;
+    let defectChance = 0;
+
+    if (fixed && modes) {
+        // Фиксированный режим: размер и сложность выбирает игрок.
+        const chosen = modes.fixedProfile(
+            this.difficulty,
+            this.fixedSize
+        );
+
+        profile = {
+            minIslands: chosen.minIslands,
+            maxIslands: chosen.maxIslands,
+            gridSize: chosen.gridSize,
+            name: modes.describe(this.modeSettings)
+        };
+        doubleChance = chosen.doubleChance;
+        dense = chosen.dense === true;
+        defectChance = chosen.defectChance ?? 0;
+    } else {
+        // Для бесконечного режима уровни за пределами кампании
+        // генерируются на текущем размере поля.
+        profile = this.levels[level - 1] ?? {
+            minIslands: 8,
+            maxIslands: 12,
+            gridSize: this.gridSize,
+            name: "🧭 Новые земли"
+        };
+        doubleChance = this.getDoubleChance();
+    }
 
     const success = this.logic.generateValidLevel({
         minIslands: profile.minIslands,
         maxIslands: profile.maxIslands,
         gridSize: profile.gridSize,
-        doubleChance: this.getDoubleChance()
+        doubleChance,
+        dense,
+        defectChance
     });
 
     if (success) {
@@ -54,11 +92,27 @@
       this.hoveredIsland = null;
       this.lastMousePos = { x: 0, y: 0 };
 
+      // Плотный генератор знает реальную долю двойных связей:
+      // номинальный doubleChance для таких карт слишком грубый.
+      const denseStats = this.logic.lastDenseStats;
+      const shownDoubleChance =
+          denseStats && Number.isFinite(denseStats.doubleShare)
+              ? denseStats.doubleShare
+              : doubleChance;
+
       if (this.statusElement) {
-          this.statusElement.textContent =
-              `Уровень ${this.level}: ${profile.name} · ` +
-              `двойных связей: ${Math.round(this.getDoubleChance() * 100)}% · ` +
-              `мостов на связь: до ${this.logic.maxBridgeCount}`;
+          if (fixed) {
+              this.statusElement.textContent =
+                  `${profile.name} · ` +
+                  `островов: ${this.logic.islands.size} · ` +
+                  `двойных связей: ${Math.round(shownDoubleChance * 100)}% · ` +
+                  `мостов на связь: до ${this.logic.maxBridgeCount}`;
+          } else {
+              this.statusElement.textContent =
+                  `Уровень ${this.level}: ${profile.name} · ` +
+                  `двойных связей: ${Math.round(shownDoubleChance * 100)}% · ` +
+                  `мостов на связь: до ${this.logic.maxBridgeCount}`;
+          }
       }
     } else if (this.statusElement) {
         this.statusElement.textContent =
@@ -76,6 +130,9 @@
    * вокруг поля появляются новые острова.
    */
   expandLevel() {
+    // Расширение есть только у «расширяющегося мира».
+    if (this.playMode !== 'expand') return false;
+
     // Каждое следующее расширение добавляет на 2 острова больше:
     // 2, 4, 6, 8, ...
     const addIslands = 2 * (this.expansionsDone + 1);
@@ -132,11 +189,33 @@
   },
 
   /**
-   * Полный перезапуск игры: сбрасывает прогресс кампании и начинает
-   * с первого уровня. Если генерация не удалась, текущая карта
-   * остаётся нетронутой.
+   * Перезапуск текущего режима.
+   *
+   * expand — сбрасывает прогресс кампании и начинает с первого уровня;
+   * fixed  — создаёт новую карту тех же размера и сложности.
+   * Если генерация не удалась, текущая карта остаётся нетронутой.
    */
   restartGame() {
+      // Фиксированная карта: те же настройки, новая расстановка.
+      if (this.playMode === 'fixed') {
+          const success = this.generateNewLevel(this.level);
+
+          if (!success) {
+              if (this.statusElement) {
+                  this.statusElement.textContent =
+                      "Не удалось создать новую карту. Текущая карта сохранена.";
+              }
+
+              return false;
+          }
+
+          this.resetTransientState();
+          this.invalidateWorldCache();
+          this.draw();
+
+          return true;
+      }
+
       const previousLevel = this.level;
       const previousExpansions = this.expansionsDone;
 
@@ -158,14 +237,7 @@
       }
 
       this.endless = true;
-      this.isVictoryShown = false;
-      this.victoryAlpha = 0;
-      this.confettiStarted = false;
-      this.confetti.length = 0;
-      this.sparkles.length = 0;
-      this.selectedIsland = null;
-      this.hoveredIsland = null;
-      this.lastMousePos = { x: 0, y: 0 };
+      this.resetTransientState();
 
       if (this.statusElement) {
           this.statusElement.textContent =
@@ -178,6 +250,262 @@
       this.draw();
 
       return true;
+  },
+
+  /*
+   * Сброс состояния, которое относится к прошлой карте: экран победы,
+   * конфетти, искры, выбор острова. Сами мосты и острова не трогаем.
+   */
+  resetTransientState() {
+      this.isVictoryShown = false;
+      this.victoryAlpha = 0;
+      this.confettiStarted = false;
+      this.confetti.length = 0;
+      this.sparkles.length = 0;
+      this.selectedIsland = null;
+      this.hoveredIsland = null;
+      this.lastMousePos = { x: 0, y: 0 };
+  },
+
+  /*
+   * Выбор режима 2D: диалог в шапке.
+   *
+   * Черновик настроек живёт отдельно от текущей партии: пока игрок
+   * переключает карточки, карта не меняется. Изменения применяются
+   * только по кнопке «Начать».
+   */
+  setupModeUI() {
+      this.modeModal = document.getElementById("modeModal");
+      this.modeButton = document.getElementById("modeButton");
+      this.modeClose = document.getElementById("modeClose");
+      this.modeApply = document.getElementById("modeApply");
+      this.modeCancel = document.getElementById("modeCancel");
+      this.modeButtonLabel = document.getElementById("modeButtonLabel");
+      this.fixedOptions = document.getElementById("modeFixedOptions");
+      this.modeNote = document.getElementById("modeNote");
+
+      if (!this.modeModal || !this.modeButton) return;
+
+      this.modeDraft = {
+          mode: this.playMode,
+          difficulty: this.difficulty,
+          size: this.fixedSize
+      };
+
+      const open = () => {
+          this.modeDraft = {
+              mode: this.playMode,
+              difficulty: this.difficulty,
+              size: this.fixedSize
+          };
+
+          this.renderModeDraft();
+
+          this.modeModal.hidden = false;
+          document.body.classList.add("mode-modal-open");
+          this.modeButton.setAttribute("aria-expanded", "true");
+
+          this.modeClose?.focus();
+      };
+
+      const close = () => {
+          if (this.modeModal.hidden) return;
+
+          this.modeModal.hidden = true;
+          document.body.classList.remove("mode-modal-open");
+          this.modeButton.setAttribute("aria-expanded", "false");
+
+          this.modeButton.focus();
+      };
+
+      this.modeButton.addEventListener("click", open);
+      this.modeClose?.addEventListener("click", close);
+      this.modeCancel?.addEventListener("click", close);
+
+      this.modeModal
+          .querySelectorAll("[data-close-mode]")
+          .forEach((element) => element.addEventListener("click", close));
+
+      document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && !this.modeModal.hidden) {
+              close();
+          }
+      });
+
+      this.modeModal.querySelectorAll("[data-mode-id]").forEach((button) => {
+          button.addEventListener("click", () => {
+              this.modeDraft.mode =
+                  window.BridgesModes2D.normalizeMode(button.dataset.modeId);
+              this.renderModeDraft();
+          });
+      });
+
+      this.modeModal.querySelectorAll("[data-difficulty]").forEach((button) => {
+          button.addEventListener("click", () => {
+              this.modeDraft.difficulty =
+                  window.BridgesModes2D.normalizeDifficulty(
+                      button.dataset.difficulty
+                  );
+              this.renderModeDraft();
+          });
+      });
+
+      this.modeModal.querySelectorAll("[data-size]").forEach((button) => {
+          button.addEventListener("click", () => {
+              this.modeDraft.size =
+                  window.BridgesModes2D.normalizeSize(button.dataset.size);
+              this.renderModeDraft();
+          });
+      });
+
+      this.modeApply?.addEventListener("click", () => {
+          const settings = { ...this.modeDraft };
+
+          close();
+          this.applyModeSettings(settings);
+      });
+
+      this.updateModeUI();
+  },
+
+  /*
+   * Подсветка выбранных карточек и чипов в открытом диалоге.
+   */
+  renderModeDraft() {
+      const modes = window.BridgesModes2D;
+
+      if (!modes || !this.modeModal) return;
+
+      const draft = modes.normalizeSettings(this.modeDraft);
+
+      this.modeDraft = draft;
+
+      this.modeModal.querySelectorAll("[data-mode-id]").forEach((button) => {
+          const active = button.dataset.modeId === draft.mode;
+
+          button.classList.toggle("is-active", active);
+          button.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+
+      this.modeModal
+          .querySelectorAll("[data-difficulty]")
+          .forEach((button) => {
+              const active = button.dataset.difficulty === draft.difficulty;
+
+              button.classList.toggle("is-active", active);
+              button.setAttribute("aria-pressed", active ? "true" : "false");
+          });
+
+      this.modeModal.querySelectorAll("[data-size]").forEach((button) => {
+          const active = Number(button.dataset.size) === draft.size;
+
+          button.classList.toggle("is-active", active);
+          button.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+
+      if (this.fixedOptions) {
+          this.fixedOptions.hidden = draft.mode !== "fixed";
+      }
+
+      if (this.modeNote) {
+          this.modeNote.textContent =
+              draft.mode === "fixed"
+                  ? `${modes.describe(draft)}. После победы появится новая ` +
+                    `карта с теми же настройками. Текущая карта будет заменена.`
+                  : "После победы карта расширится: появятся новые острова, " +
+                    "а старые мосты останутся. Текущая карта будет заменена.";
+      }
+  },
+
+  /*
+   * Применение настроек: сохранить выбор и сразу собрать новую карту.
+   * При неудаче возвращаем прежний режим и оставляем старую карту.
+   */
+  applyModeSettings(settings) {
+      const modes = window.BridgesModes2D;
+
+      const previous = {
+          mode: this.playMode,
+          difficulty: this.difficulty,
+          size: this.fixedSize,
+          level: this.level,
+          expansions: this.expansionsDone
+      };
+
+      const next = modes
+          ? modes.normalizeSettings(settings)
+          : { ...previous, ...settings };
+
+      this.playMode = next.mode;
+      this.difficulty = next.difficulty;
+      this.fixedSize = next.size;
+      this.modeSettings = next;
+      this.endless = next.mode === "expand";
+
+      this.level = 1;
+      this.expansionsDone = 0;
+
+      if (modes) modes.saveSettings(next);
+
+      const success = this.generateNewLevel(1);
+
+      if (!success) {
+          this.playMode = previous.mode;
+          this.difficulty = previous.difficulty;
+          this.fixedSize = previous.size;
+          this.level = previous.level;
+          this.expansionsDone = previous.expansions;
+          this.endless = previous.mode === "expand";
+          this.modeSettings = {
+              mode: previous.mode,
+              difficulty: previous.difficulty,
+              size: previous.size
+          };
+
+          if (modes) modes.saveSettings(this.modeSettings);
+
+          this.updateModeUI();
+
+          if (this.statusElement) {
+              this.statusElement.textContent =
+                  "Не удалось создать карту с выбранными настройками. " +
+                  "Текущая карта сохранена.";
+          }
+
+          return false;
+      }
+
+      this.resetTransientState();
+      this.updateModeUI();
+      this.invalidateWorldCache();
+      this.draw();
+
+      return true;
+  },
+
+  /*
+   * Кнопка в шапке показывает текущий режим, чтобы не открывать диалог
+   * ради проверки настроек.
+   */
+  updateModeUI() {
+      const modes = window.BridgesModes2D;
+
+      if (!modes) return;
+
+      this.modeSettings = modes.normalizeSettings({
+          mode: this.playMode,
+          difficulty: this.difficulty,
+          size: this.fixedSize
+      });
+
+      if (this.modeButtonLabel) {
+          this.modeButtonLabel.textContent = modes.shortLabel(this.modeSettings);
+      }
+
+      if (this.modeButton) {
+          this.modeButton.title =
+              "Режим: " + modes.describe(this.modeSettings);
+      }
   },
 
   getIslandAtPos(x, y) {
@@ -300,6 +628,17 @@
             pos.y >= button.y &&
             pos.y <= button.y + button.height
         ) {
+            // Фиксированная карта: после победы — новая карта тех же настроек.
+            if (this.playMode === 'fixed') {
+                if (this.generateNewLevel(this.level)) {
+                    this.resetTransientState();
+                    this.invalidateWorldCache();
+                    this.draw();
+                }
+
+                return;
+            }
+
             // Бесконечный режим: расширяем пройденную карту.
             if (this.endless) {
                 this.expandLevel();
@@ -315,11 +654,7 @@
             }
 
             if (this.generateNewLevel(this.level)) {
-                this.isVictoryShown = false;
-                this.victoryAlpha = 0;
-                this.confettiStarted = false;
-                this.selectedIsland = null;
-                this.hoveredIsland = null;
+                this.resetTransientState();
             }
         }
 

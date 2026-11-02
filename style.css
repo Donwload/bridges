@@ -93,7 +93,7 @@ body {
    ========================================================= */
 
 .app-wrapper {
-    width: min(100%, 720px);
+    width: min(100%, 1660px);
 
     display: flex;
     flex-direction: column;
@@ -184,11 +184,60 @@ body {
 
 
 /* =========================================================
+   GAME LAYOUT: поле и боковая колонка
+   ========================================================= */
+
+.game-layout {
+    width: 100%;
+
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 264px;
+    gap: 18px;
+    align-items: start;
+}
+
+/*
+ * Колонка поля. Именно её ширину измеряет рендерер: контейнер
+ * внутри сжимается по canvas, поэтому измерять сам контейнер нельзя —
+ * получился бы замкнутый круг «canvas → рамка → canvas».
+ */
+.game-main {
+    width: 100%;
+    min-width: 0;
+
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+/*
+ * Статус и подсказки живут сбоку, чтобы не отнимать высоту у поля
+ * и дать карте максимум ширины. На узких экранах колонка
+ * превращается в обычный блок под canvas.
+ */
+.game-side {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+
+    min-width: 0;
+
+    position: sticky;
+    top: 18px;
+}
+
+
+/* =========================================================
    GAME FRAME
    ========================================================= */
 
 .game-container {
-    width: 100%;
+    /*
+     * Рамка облегает canvas, а не растягивается на всю колонку.
+     * Иначе у маленьких карт остаются широкие тёмные поля по бокам.
+     */
+    width: fit-content;
+    max-width: 100%;
 
     padding: 11px;
 
@@ -228,7 +277,13 @@ body {
 canvas {
     display: block;
 
-    width: 100%;
+    /*
+     * Не растягиваем bitmap по CSS: рендерер сам подбирает ширину
+     * под колонку. Так маленькие поля остаются чёткими, а не
+     * размываются на широком экране.
+     */
+    width: auto;
+    max-width: 100%;
     height: auto;
 
     margin: 0 auto;
@@ -257,12 +312,12 @@ canvas:focus-visible {
 
 .game-status {
     width: 100%;
-    max-width: 630px;
+    max-width: none;
 
     font-size: 0.9rem;
     font-weight: 700;
 
-    text-align: center;
+    text-align: left;
     letter-spacing: 0.02em;
 }
 
@@ -314,17 +369,17 @@ canvas:focus-visible {
 
 .game-help {
     width: 100%;
-    max-width: 630px;
+    max-width: none;
 
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-start;
+    justify-content: flex-start;
 
-    flex-wrap: wrap;
+    flex-direction: column;
 
-    gap: 7px 18px;
+    gap: 8px;
 
-    padding: 9px 14px;
+    padding: 12px 14px;
 
     background: rgba(255, 253, 247, 0.88);
 
@@ -338,17 +393,17 @@ canvas:focus-visible {
     font-size: 12px;
     line-height: 1.35;
 
-    text-align: center;
+    text-align: left;
 
     backdrop-filter: blur(8px);
 }
 
 .game-help span {
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-start;
+    justify-content: flex-start;
 
-    white-space: nowrap;
+    white-space: normal;
 }
 
 
@@ -375,6 +430,42 @@ canvas:focus-visible {
 /* =========================================================
    TABLET / MOBILE
    ========================================================= */
+
+/* Боковая колонка не помещается — возвращаем статус под поле. */
+@media (max-width: 1080px) {
+    .game-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .game-side {
+        position: static;
+
+        align-items: center;
+    }
+
+    .game-status,
+    .game-help {
+        max-width: 630px;
+    }
+
+    .game-status {
+        text-align: center;
+    }
+
+    .game-help {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+
+        text-align: center;
+    }
+
+    .game-help span {
+        justify-content: center;
+
+        white-space: nowrap;
+    }
+}
 
 @media (max-width: 700px) {
     body {
@@ -806,6 +897,192 @@ body.skin-modal-open {
 
 
 /* =========================================================
+   MODE DIALOG (2D: расширяющийся мир / фиксированная карта)
+   ========================================================= */
+
+/* Кнопка режима стоит второй строкой под «Скинами». */
+.mode-button {
+    top: 54px;
+}
+
+.mode-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+
+    margin-bottom: 16px;
+}
+
+.mode-card {
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    padding: 16px 14px;
+
+    border: 2px solid rgba(98, 66, 56, 0.22);
+    border-radius: 18px;
+
+    background: rgba(255, 255, 255, 0.55);
+
+    color: inherit;
+
+    text-align: left;
+
+    cursor: pointer;
+
+    transition:
+        transform 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.mode-card:hover {
+    transform: translateY(-3px);
+
+    border-color: rgba(217, 119, 6, 0.55);
+
+    box-shadow: 0 14px 28px rgba(58, 36, 29, 0.18);
+}
+
+.mode-card.is-active {
+    border-color: #d97706;
+
+    box-shadow:
+        0 0 0 3px rgba(251, 191, 36, 0.25),
+        0 14px 30px rgba(58, 36, 29, 0.18);
+}
+
+.mode-card:focus-visible {
+    outline: 3px solid var(--gold-300);
+    outline-offset: 3px;
+}
+
+.mode-card-icon {
+    font-size: 26px;
+    line-height: 1;
+}
+
+.mode-card .skin-check {
+    top: 12px;
+    right: 12px;
+}
+
+.mode-card.is-active .skin-check {
+    display: flex;
+}
+
+.mode-name {
+    font: 700 16px/1.2 "Fredoka", sans-serif;
+    color: var(--wood-900);
+}
+
+.mode-desc {
+    color: var(--text-muted);
+
+    font: 700 11.5px/1.4 "Nunito", sans-serif;
+}
+
+.mode-options[hidden] {
+    display: none;
+}
+
+.mode-options {
+    display: grid;
+    gap: 14px;
+
+    margin-bottom: 14px;
+}
+
+.mode-field {
+    margin: 0;
+    padding: 0;
+
+    border: 0;
+}
+
+.mode-field legend {
+    margin-bottom: 8px;
+    padding: 0;
+
+    color: var(--text-muted);
+
+    font: 700 11px/1 "Nunito", sans-serif;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.mode-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.mode-chip {
+    padding: 9px 15px;
+
+    border: 2px solid rgba(98, 66, 56, 0.24);
+    border-radius: 999px;
+
+    background: rgba(255, 255, 255, 0.6);
+
+    color: var(--wood-800);
+
+    font: 700 12.5px/1 "Nunito", sans-serif;
+
+    cursor: pointer;
+
+    transition:
+        transform 140ms ease,
+        border-color 140ms ease,
+        background 140ms ease,
+        box-shadow 140ms ease;
+}
+
+.mode-chip:hover {
+    transform: translateY(-2px);
+
+    border-color: rgba(217, 119, 6, 0.55);
+
+    background: #fff;
+}
+
+.mode-chip.is-active {
+    border-color: #d97706;
+
+    background:
+        linear-gradient(
+            180deg,
+            #fbbf24 0%,
+            #f59e0b 100%
+        );
+
+    color: #4b3027;
+
+    box-shadow: 0 6px 14px rgba(217, 119, 6, 0.3);
+}
+
+.mode-chip:focus-visible {
+    outline: 3px solid var(--gold-300);
+    outline-offset: 2px;
+}
+
+.mode-note {
+    margin: 0 0 4px;
+
+    color: var(--text-muted);
+
+    font: 700 12px/1.5 "Nunito", sans-serif;
+}
+
+body.mode-modal-open {
+    overflow: hidden;
+}
+
+
+/* =========================================================
    CONFIRM DIALOG
    ========================================================= */
 
@@ -1088,6 +1365,59 @@ body[data-skin="night"] .confirm-button-secondary:hover {
     background: rgba(51, 65, 85, 0.95);
 }
 
+body[data-skin="night"] .mode-dialog {
+    background:
+        linear-gradient(
+            180deg,
+            #1e293b 0%,
+            #0f172a 100%
+        );
+
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+body[data-skin="night"] #modeTitle,
+body[data-skin="night"] .mode-name {
+    color: #f8fafc;
+}
+
+body[data-skin="night"] .mode-desc,
+body[data-skin="night"] .mode-note,
+body[data-skin="night"] .mode-field legend {
+    color: #cbd5e1;
+}
+
+body[data-skin="night"] .mode-card {
+    background: rgba(30, 41, 59, 0.6);
+
+    border-color: rgba(148, 163, 184, 0.25);
+}
+
+body[data-skin="night"] .mode-chip {
+    background: rgba(30, 41, 59, 0.8);
+
+    color: #e2e8f0;
+
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+body[data-skin="night"] .mode-chip:hover {
+    background: rgba(51, 65, 85, 0.95);
+}
+
+body[data-skin="night"] .mode-chip.is-active {
+    background:
+        linear-gradient(
+            180deg,
+            #fbbf24 0%,
+            #f59e0b 100%
+        );
+
+    color: #4b3027;
+
+    border-color: #f59e0b;
+}
+
 
 /* ---------- experimental theme ---------- */
 
@@ -1127,8 +1457,21 @@ body[data-skin="experimental"] .skin-badge {
         padding: 6px 9px;
     }
 
+    .mode-button {
+        top: 44px;
+    }
+
     .skin-button-label {
         display: none;
+    }
+
+    .mode-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .mode-card {
+        padding: 14px 12px;
     }
 
     .skin-dialog {

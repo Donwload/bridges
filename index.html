@@ -25,30 +25,50 @@
                 <span class="skin-button-label">Скины</span>
             </button>
 
+            <button
+                id="modeButton"
+                class="skin-button mode-button"
+                type="button"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+                aria-controls="modeModal"
+                title="Режим игры"
+            >
+                <span aria-hidden="true">🗺️</span>
+                <span class="skin-button-label" id="modeButtonLabel">Расширение</span>
+            </button>
+
             <h1>🏰 Мосты</h1>
             <p class="subtitle">Соедини острова древними тропами</p>
         </header>
 
-        <div class="game-container">
-            <canvas
-                id="gameCanvas"
-                tabindex="0"
-                role="application"
-                aria-label="Игра Мосты. Соедините острова мостами так, чтобы число мостов вокруг каждого острова соответствовало указанному числу."
-                aria-describedby="gameHelp gameStatus"
-            ></canvas>
-        </div>
+        <div class="game-layout">
+            <div class="game-main">
+                <div class="game-container">
+                    <canvas
+                        id="gameCanvas"
+                        tabindex="0"
+                        role="application"
+                        aria-label="Игра Мосты. Соедините острова мостами так, чтобы число мостов вокруг каждого острова соответствовало указанному числу."
+                        aria-describedby="gameHelp gameStatus"
+                    ></canvas>
+                </div>
+            </div>
 
-        <p id="gameStatus" class="game-status" role="status" aria-live="polite"></p>
+            <aside class="game-side" aria-label="Состояние игры и подсказки">
+                <p id="gameStatus" class="game-status" role="status" aria-live="polite"></p>
 
-        <div class="game-help" id="gameHelp">
-            <span>🖱️ ЛКМ / касание + перетягивание — соединить острова</span>
-            <span>🖱️ ПКМ — удалить мост</span>
-            <span>🔍 Колесо / щипок двумя пальцами — приближение</span>
-            <span>✋ Перетаскивание воды или СКМ — сдвиг карты</span>
-            <span>⌨️ + / − / 0 — масштаб</span>
-            <span>📱 На телефоне — коснитесь моста, чтобы удалить</span>
-            <span>🧊 «2D / 3D» в шапке — объёмный режим</span>
+                <div class="game-help" id="gameHelp">
+                    <span>🖱️ ЛКМ / касание + перетягивание — соединить острова</span>
+                    <span>🖱️ ПКМ — удалить мост</span>
+                    <span>🔍 Колесо / щипок двумя пальцами — приближение</span>
+                    <span>✋ Перетаскивание воды или СКМ — сдвиг карты</span>
+                    <span>⌨️ + / − / 0 — масштаб</span>
+                    <span>📱 На телефоне — коснитесь моста, чтобы удалить</span>
+                    <span>🗺️ «Режим» в шапке — расширяющийся мир или карта с настройками</span>
+                    <span>🧊 «2D / 3D» в шапке — объёмный режим</span>
+                </div>
+            </aside>
         </div>
     </div>
 
@@ -133,6 +153,132 @@
         </div>
     </div>
 
+    <div class="skin-modal mode-modal" id="modeModal" hidden>
+        <div class="skin-backdrop" data-close-mode></div>
+
+        <div
+            class="skin-dialog mode-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modeTitle"
+            aria-describedby="modeNote"
+        >
+            <button
+                class="skin-close"
+                id="modeClose"
+                type="button"
+                aria-label="Закрыть выбор режима"
+            >×</button>
+
+            <h2 id="modeTitle">Режим игры</h2>
+            <p class="skin-subtitle">Выбери, как устроена карта</p>
+
+            <div class="mode-grid">
+                <button
+                    class="mode-card"
+                    type="button"
+                    data-mode-id="expand"
+                    aria-pressed="false"
+                >
+                    <span class="mode-card-icon" aria-hidden="true">🌍</span>
+                    <span class="mode-name">Расширяющийся мир</span>
+                    <span class="mode-desc">
+                        После победы карта растёт, а старые мосты остаются
+                    </span>
+                    <span class="skin-check" aria-hidden="true">✓</span>
+                </button>
+
+                <button
+                    class="mode-card"
+                    type="button"
+                    data-mode-id="fixed"
+                    aria-pressed="false"
+                >
+                    <span class="mode-card-icon" aria-hidden="true">🗺️</span>
+                    <span class="mode-name">Фиксированная карта</span>
+                    <span class="mode-desc">
+                        Выбранные размер и сложность, после победы — новая карта
+                    </span>
+                    <span class="skin-check" aria-hidden="true">✓</span>
+                </button>
+            </div>
+
+            <div class="mode-options" id="modeFixedOptions" hidden>
+                <fieldset class="mode-field">
+                    <legend>Сложность</legend>
+
+                    <div class="mode-chips">
+                        <button
+                            class="mode-chip"
+                            type="button"
+                            data-difficulty="easy"
+                            aria-pressed="false"
+                        >Простая</button>
+                        <button
+                            class="mode-chip"
+                            type="button"
+                            data-difficulty="medium"
+                            aria-pressed="false"
+                        >Средняя</button>
+                        <button
+                            class="mode-chip"
+                            type="button"
+                            data-difficulty="hard"
+                            aria-pressed="false"
+                        >Сложная</button>
+                    </div>
+                </fieldset>
+
+                <fieldset class="mode-field">
+                    <legend>Размер карты</legend>
+
+                    <div class="mode-chips">
+                        <button
+                            class="mode-chip"
+                            type="button"
+                            data-size="7"
+                            aria-pressed="false"
+                        >7×7</button>
+                        <button
+                            class="mode-chip"
+                            type="button"
+                            data-size="10"
+                            aria-pressed="false"
+                        >10×10</button>
+                        <button
+                            class="mode-chip"
+                            type="button"
+                            data-size="15"
+                            aria-pressed="false"
+                        >15×15</button>
+                        <button
+                            class="mode-chip"
+                            type="button"
+                            data-size="25"
+                            aria-pressed="false"
+                        >25×25</button>
+                    </div>
+                </fieldset>
+            </div>
+
+            <p class="mode-note" id="modeNote"></p>
+
+            <div class="confirm-actions">
+                <button
+                    class="confirm-button confirm-button-secondary"
+                    id="modeCancel"
+                    type="button"
+                >Отмена</button>
+
+                <button
+                    class="confirm-button confirm-button-primary"
+                    id="modeApply"
+                    type="button"
+                >Начать</button>
+            </div>
+        </div>
+    </div>
+
     <div class="confirm-modal" id="restartModal" hidden>
         <div class="confirm-backdrop" data-close-restart></div>
 
@@ -173,6 +319,7 @@
     <script src="logic/level-generator.js"></script>
     <script src="logic.js"></script>
     <script src="renderer/skins.js"></script>
+    <script src="renderer/modes.js"></script>
     <script src="renderer/world.js"></script>
     <script src="renderer/view.js"></script>
     <script src="renderer/game.js"></script>
@@ -193,6 +340,9 @@
 
             const logic = new BridgesGameLogic(7);
             const renderer = new BridgesGameRenderer('gameCanvas', logic);
+
+            // Отладочная точка, как window.app3d на 3D-странице.
+            window.app2d = renderer;
 
             const generated = renderer.generateNewLevel(1);
 

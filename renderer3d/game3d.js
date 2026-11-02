@@ -261,6 +261,27 @@
       return true;
     }
 
+    /*
+     * Снять все мосты текущего уровня: острова и их числа остаются,
+     * камера тоже не двигается. Возвращает число снятых мостов.
+     */
+    clearBridges() {
+      if (!this.logic) return 0;
+
+      const removed = this.logic.clearBridges();
+
+      this._clearSelection();
+      this._hideBanner();
+
+      // Искры над собранными островами и конфетти победы больше не актуальны.
+      this.effects.reset();
+      this.effects.syncAmbient(this.skin.ambient, [0, 0, 0], this._extent());
+
+      this._updateStatus();
+
+      return removed;
+    }
+
     _sizeLabel(size) {
       return "Генерация поля " + size + "×" + size + "×" + size + "…";
     }
@@ -719,7 +740,15 @@
         { passive: false }
       );
 
-      canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+      canvas.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+
+        // Во время переноса ПКМ ничего не снимает: сначала отпустите мост.
+        if (this.link) return;
+
+        this.rect = canvas.getBoundingClientRect();
+        this._removeBridgeAt(e.clientX, e.clientY);
+      });
 
       global.addEventListener("keydown", (e) => {
         // Скины доступны всегда: S листает, Esc закрывает панель и перенос.
@@ -867,6 +896,76 @@
       }
 
       return bestKey;
+    }
+
+    /*
+     * Мост под курсором. Расстояние считаем на экране: так порог не зависит
+     * от масштаба сцены. Концы отрезка пропускаем — ПКМ по сфере не должна
+     * снимать мост, который из неё выходит.
+     */
+    _pickBridge(clientX, clientY) {
+      const px = clientX - this.rect.left;
+      const py = clientY - this.rect.top;
+
+      let best = null;
+      let bestDistance = 12;
+      let bestDepth = Infinity;
+
+      for (const entry of this.logic.bridges.values()) {
+        const a = this.project(this.worldOf(entry.meta.p1));
+        const b = this.project(this.worldOf(entry.meta.p2));
+
+        if (!a || !b) continue;
+
+        const distance = this._distanceToSegment(px, py, a.x, a.y, b.x, b.y, 0.2);
+
+        if (distance === null) continue;
+
+        const depth = (a.depth + b.depth) / 2;
+
+        if (distance > bestDistance) continue;
+        if (distance === bestDistance && depth >= bestDepth) continue;
+
+        best = entry;
+        bestDistance = distance;
+        bestDepth = depth;
+      }
+
+      return best;
+    }
+
+    _distanceToSegment(px, py, ax, ay, bx, by, margin) {
+      const dx = bx - ax;
+      const dy = by - ay;
+      const lengthSq = dx * dx + dy * dy;
+
+      if (lengthSq === 0) return null;
+
+      const t = ((px - ax) * dx + (py - ay) * dy) / lengthSq;
+      const edge = margin || 0;
+
+      if (t < edge || t > 1 - edge) return null;
+
+      const cx = ax + t * dx;
+      const cy = ay + t * dy;
+
+      return Math.hypot(px - cx, py - cy);
+    }
+
+    /*
+     * ПКМ по мосту снимает связь целиком (и одну, и две трубки), как в 2D.
+     * Возвращает true, если что-то действительно удалили.
+     */
+    _removeBridgeAt(clientX, clientY) {
+      const entry = this._pickBridge(clientX, clientY);
+
+      if (!entry) return false;
+      if (!this.logic.removeBridge(entry.meta.p1, entry.meta.p2)) return false;
+
+      this._clearSelection();
+      this._afterChange();
+
+      return true;
     }
 
     /*

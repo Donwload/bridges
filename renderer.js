@@ -36,8 +36,20 @@ class BridgesGameRenderer {
     this.hoverZoomBtn = null;
     this.canvasRect = null;
 
-    // Режим бесконечного расширения: после каждой победы карта растёт.
-    this.endless = true;
+    /*
+     * Режим 2D-игры: расширяющийся мир или фиксированная карта.
+     * Настройки переживают перезагрузку страницы (localStorage).
+     */
+    const modes = window.BridgesModes2D;
+    this.modeSettings = modes
+        ? modes.loadSettings()
+        : { mode: 'expand', difficulty: 'medium', size: 10 };
+    this.playMode = this.modeSettings.mode;
+    this.difficulty = this.modeSettings.difficulty;
+    this.fixedSize = this.modeSettings.size;
+
+    // endless — старое имя «после победы карта расширяется».
+    this.endless = this.playMode === 'expand';
 
     // Сколько расширений уже сделано (нужно для растущего прироста островов).
     this.expansionsDone = 0;
@@ -146,6 +158,7 @@ class BridgesGameRenderer {
 
     this.setupEvents();
     this.setupSkinUI();
+    this.setupModeUI();
     this.setupRestartConfirm();
     this.startAnimationLoop();
   }
@@ -442,6 +455,15 @@ class BridgesGameRenderer {
               this.draw();
           }, 120);
       });
+
+      // После загрузки шрифтов шапка может стать чуть выше.
+      // Пересчитываем геометрию, чтобы карта по-прежнему помещалась.
+      if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(() => {
+              this.updateCanvasGeometry();
+              this.draw();
+          });
+      }
   }
 
   getMousePos(e) {
@@ -478,29 +500,78 @@ class BridgesGameRenderer {
       this.worldH = boardSize + boardPadding * 2;
 
       /*
-       * Canvas вписываем в реально доступную ширину страницы.
-       * Так мы не рисуем больше пикселей, чем браузер показывает:
-       * на узких экранах это заметно экономит отрисовку.
+       * Canvas вписываем в реально доступную ширину колонки.
+       * Меряем именно .game-main: .game-container сжимается по canvas,
+       * поэтому его ширина зависела бы от уже нарисованного холста.
        */
-      const container = this.canvas.parentElement;
+      const column =
+          (this.canvas.closest &&
+              this.canvas.closest(".game-main")) ||
+          this.canvas.parentElement;
+
       const cssWidth =
-          (container && container.clientWidth) ||
+          (column && column.clientWidth) ||
           (typeof window !== "undefined" && window.innerWidth) ||
           720;
 
-      const horizontalPadding = 22; // .game-container padding: 11px * 2
+      // padding 11px * 2 + border 3px * 2 = 28px.
+      const horizontalPadding = 28;
       const availableWidth = Math.max(
           320,
           cssWidth - horizontalPadding
       );
 
-      const VIEW_LIMIT = Math.min(1100, availableWidth);
-      this.fitScale = Math.min(1, VIEW_LIMIT / this.worldW);
+      // Статус и подсказки уехали в боковую колонку, поэтому поле
+      // может занимать почти всю ширину широкого экрана.
+      const VIEW_LIMIT = Math.min(1500, availableWidth);
+
+      // Небольшие поля слегка увеличиваем, чтобы они не терялись
+      // в широкой колонке. Кэш чанков рисуется с запасом 2×,
+      // поэтому такое увеличение остаётся чётким.
+      const MAX_FIT_SCALE = 1.35;
+
+      this.buttonBarHeight = 92;
+
+      /*
+       * Высокие карты (25×25) иначе не помещаются в окно: canvas
+       * вместе с кнопками уходит за нижний край. Ограничиваем масштаб
+       * ещё и по высоте, оставляя место над полем и под ним.
+       */
+      const viewportHeight =
+          (typeof window !== "undefined" && window.innerHeight) ||
+          800;
+
+      let columnTop = 0;
+
+      if (
+          column &&
+          typeof column.getBoundingClientRect === "function"
+      ) {
+          // Верх колонки уже в координатах окна. Прибавлять scrollY
+          // нельзя: после прокрутки это занижало бы доступную высоту
+          // и карта уменьшалась бы при смене размера.
+          columnTop = column.getBoundingClientRect().top;
+      }
+
+      const frameExtra = 28; // padding + border контейнера
+      const bottomGap = 16;
+      const heightForViewport =
+          viewportHeight -
+          columnTop -
+          frameExtra -
+          bottomGap -
+          this.buttonBarHeight;
+
+      const availableHeight = Math.max(260, heightForViewport);
+
+      this.fitScale = Math.min(
+          MAX_FIT_SCALE,
+          VIEW_LIMIT / this.worldW,
+          availableHeight / this.worldH
+      );
 
       this.viewportW = Math.round(this.worldW * this.fitScale);
       this.viewportH = Math.round(this.worldH * this.fitScale);
-
-      this.buttonBarHeight = 92;
 
       this.canvasW = this.viewportW;
       this.canvasH = this.viewportH + this.buttonBarHeight;
@@ -514,7 +585,7 @@ class BridgesGameRenderer {
       // На небольших полях рисуем кластеры с запасом по чёткости,
       // чтобы приближение не превращало острова в мыло. На больших
       // картах память важнее, поэтому там остаётся масштаб 1:1.
-      this.chunkScale = this.worldW <= 1200 ? 2 : 1;
+      this.chunkScale = this.worldW <= 1400 ? 2 : 1;
 
       /*
         * offset — это координата ЦЕНТРА первой клетки.

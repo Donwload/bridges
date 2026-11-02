@@ -139,6 +139,22 @@
     }
 
     /*
+     * Снять все мосты, оставив острова и их числа. Возвращает число
+     * удалённых связей — удобно для статуса и тестов.
+     */
+    clearBridges() {
+      const removed = this.bridges.size;
+
+      this.bridges.clear();
+
+      for (const key of this.islandKeys) {
+        this.totals.set(key, 0);
+      }
+
+      return removed;
+    }
+
+    /*
      * Острова, достижимые от p1 вдоль выбранной оси без других островов
      * на пути. Это и есть цели под гизмо.
      */

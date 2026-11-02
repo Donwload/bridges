@@ -254,6 +254,7 @@
   <button id="btn-easier" class="hud-btn" type="button">Проще</button>
   <button id="btn-harder" class="hud-btn" type="button">Сложнее</button>
   <button id="btn-new" class="hud-btn is-primary" type="button">Новая карта</button>
+  <button id="btn-clear" class="hud-btn" type="button" title="Сбросить все мосты" aria-label="Сбросить все мосты">Сброс</button>
   <button id="btn-skin" class="hud-btn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="skin-panel">Скин</button>
 </div>
 
@@ -289,7 +290,8 @@
 
 <div id="hint">
   <b>Потянуть мост от сферы</b> — отпустить на подсвеченной цели (0→1→2→0) ·
-  <b>клик по сфере</b> — выбрать · <b>перетаскивание по пустому месту</b> — поворот ·
+  <b>ПКМ по мосту</b> — удалить · <b>клик по сфере</b> — выбрать ·
+  <b>перетаскивание по пустому месту</b> — поворот ·
   <b>колесо</b> — приближение ·
   <b>«Расширить карту»</b> после победы — следующий уровень ·
   <b>S</b> или кнопка «Скин» — палитра и эффекты ·
@@ -354,20 +356,56 @@
      * Уровни запрашиваются через requestLevel: поле подбирается в Worker,
      * поэтому кнопки не замораживают страницу на больших размерах.
      */
+    const clearButton = document.getElementById("btn-clear");
+    let clearArmed = false;
+    let clearTimer = 0;
+
+    const disarmClear = function () {
+      clearArmed = false;
+      clearButton.textContent = "Сброс";
+      clearButton.classList.remove("is-danger");
+
+      if (clearTimer) {
+        clearTimeout(clearTimer);
+        clearTimer = 0;
+      }
+    };
+
+    // Сброс всех мостов спрашивает подтверждение вторым кликом: уровень
+    // остаётся тем же, но расставленные связи пропадут.
+    clearButton.addEventListener("click", function () {
+      if (!clearArmed) {
+        clearArmed = true;
+        clearButton.textContent = "Точно?";
+        clearButton.classList.add("is-danger");
+        clearTimer = setTimeout(disarmClear, 4000);
+        return;
+      }
+
+      disarmClear();
+      app.clearBridges();
+    });
+
+    const requestLevel = function (size) {
+      disarmClear();
+      app.requestLevel(size);
+    };
+
     document.getElementById("btn-new").addEventListener("click", function () {
-      app.requestLevel(app.size);
+      requestLevel(app.size);
     });
 
     document.getElementById("btn-harder").addEventListener("click", function () {
-      app.requestLevel(Math.min(6, app.size + 1));
+      requestLevel(Math.min(6, app.size + 1));
     });
 
     document.getElementById("btn-easier").addEventListener("click", function () {
-      app.requestLevel(Math.max(3, app.size - 1));
+      requestLevel(Math.max(3, app.size - 1));
     });
 
     // Продолжение после победы: куб растёт, добавляются новые острова.
     document.getElementById("btn-expand").addEventListener("click", function () {
+      disarmClear();
       // Ошибка расширения уже пишется в статус самим приложением.
       app.expandLevel();
     });

@@ -339,12 +339,20 @@
         /*
          * 9. Информация об уровне.
          */
+        const modes = window.BridgesModes2D;
+        const fixedMode = this.playMode === "fixed";
+        const fixedLabel = modes
+            ? modes.difficultyLabel(this.difficulty)
+            : "средняя";
+
         this.ctx.font = '700 17px "Nunito", sans-serif';
         this.ctx.fillStyle = "#765E52";
         this.ctx.fillText(
-            this.endless
-                ? `Уровень ${this.level} пройден!`
-                : `Уровень ${this.level} из ${this.levels.length} пройден!`,
+            fixedMode
+                ? `Карта ${this.gridSize}×${this.gridSize} · ${fixedLabel}`
+                : (this.endless
+                    ? `Уровень ${this.level} пройден!`
+                    : `Уровень ${this.level} из ${this.levels.length} пройден!`),
             w / 2, py + 120
         );
 
@@ -354,7 +362,12 @@
         this.ctx.font = '700 15px "Nunito", sans-serif';
         this.ctx.fillStyle = "#765E52";
 
-        if (this.endless) {
+        if (fixedMode) {
+            this.ctx.fillText(
+                "Новая карта с теми же настройками",
+                w / 2, py + 145
+            );
+        } else if (this.endless) {
             this.ctx.fillText(
                 `Следующий уровень: ${this.level + 1} · новых островов: ` +
                 `${2 * (this.expansionsDone + 1)}`,
@@ -404,9 +417,11 @@
             ],
             this.endless
                 ? "РАСШИРИТЬ"
-                : (this.level >= this.levels.length
-                    ? "НАЧАТЬ ЗАНОВО"
-                    : "СЛЕДУЮЩИЙ УРОВЕНЬ"),
+                : (fixedMode
+                    ? "НОВАЯ КАРТА"
+                    : (this.level >= this.levels.length
+                        ? "НАЧАТЬ ЗАНОВО"
+                        : "СЛЕДУЮЩИЙ УРОВЕНЬ")),
             true
         );
 
@@ -502,6 +517,8 @@
       this.restartModal = document.getElementById("restartModal");
       this.restartConfirmButton = document.getElementById("restartConfirm");
       this.restartCancelButton = document.getElementById("restartCancel");
+      this.restartTitle = document.getElementById("restartTitle");
+      this.restartText = document.getElementById("restartText");
 
       if (!this.restartModal) return;
 
@@ -541,6 +558,33 @@
 
       this.selectedIsland = null;
       this.hoveredIsland = null;
+
+      const modes = window.BridgesModes2D;
+      const fixedMode = this.playMode === "fixed";
+
+      if (this.restartTitle) {
+          this.restartTitle.textContent = fixedMode
+              ? "Новая карта?"
+              : "Начать заново?";
+      }
+
+      if (this.restartText) {
+          this.restartText.textContent = fixedMode
+              ? `Будет создана новая карта ${this.gridSize}×${this.gridSize} ` +
+                `со сложностью «${
+                    modes
+                        ? modes.difficultyLabel(this.difficulty)
+                        : "средняя"
+                }». Все построенные мосты будут сброшены.`
+              : "Игра начнётся с уровня 1. Все построенные мосты и прогресс " +
+                "кампании будут сброшены.";
+      }
+
+      if (this.restartConfirmButton) {
+          this.restartConfirmButton.textContent = fixedMode
+              ? "Новая карта"
+              : "Начать заново";
+      }
 
       this.restartModal.hidden = false;
       document.body.classList.add("confirm-modal-open");

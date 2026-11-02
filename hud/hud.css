@@ -335,6 +335,45 @@ body[data-hud="overlay"][data-skin="experimental"] .hud-btn.is-primary {
     background: linear-gradient(180deg, #b45309, #92400e);
 }
 
+/* Подтверждение сброса мостов: после первого клика кнопка становится красной. */
+body[data-hud="overlay"] .hud-btn.is-danger {
+    border-color: rgba(150, 40, 40, 0.55);
+
+    background: linear-gradient(180deg, #b23a3a, #8a2626);
+
+    color: #fff1ec;
+
+    text-shadow: 0 1px 2px rgba(45, 12, 12, 0.45);
+}
+
+body[data-hud="overlay"] .hud-btn.is-danger:hover {
+    background: linear-gradient(180deg, #c64a4a, #9b2d2d);
+}
+
+body[data-hud="overlay"][data-skin="night"] .hud-btn.is-danger {
+    border-color: rgba(248, 113, 113, 0.5);
+
+    background: linear-gradient(180deg, #7f1d1d, #5b1414);
+
+    color: #fee2e2;
+}
+
+body[data-hud="overlay"][data-skin="night"] .hud-btn.is-danger:hover {
+    background: linear-gradient(180deg, #991b1b, #6f1616);
+}
+
+body[data-hud="overlay"][data-skin="experimental"] .hud-btn.is-danger {
+    border-color: rgba(127, 29, 29, 0.55);
+
+    background: linear-gradient(180deg, #b91c1c, #7f1d1d);
+
+    color: #fff1ec;
+}
+
+body[data-hud="overlay"][data-skin="experimental"] .hud-btn.is-danger:hover {
+    background: linear-gradient(180deg, #dc2626, #991b1b);
+}
+
 
 /* =========================================================
    ОСТАЛЬНОЕ ОФОРМЛЕНИЕ 3D-СТРАНИЦЫ В ТОЙ ЖЕ ПАЛИТРЕ

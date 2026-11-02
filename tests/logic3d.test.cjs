@@ -84,6 +84,55 @@ test("видимый сосед — ближайший, дальние пере�
   assert.deepEqual(visibleNeighbours3d([1, 1, 0], islands, 5), []);
 });
 
+test("удаление моста снимает и одну, и две трубки", () => {
+  const logic = new BridgesLogic3D(
+    new Map([
+      ["0,0,0", 2],
+      ["2,0,0", 2]
+    ]),
+    2,
+    3
+  );
+
+  const p1 = [0, 0, 0];
+  const p2 = [2, 0, 0];
+
+  assert.equal(logic.cycleBridge(p1, p2), 1);
+  assert.equal(logic.cycleBridge(p1, p2), 2);
+  assert.equal(logic.bridges.size, 1);
+  assert.equal(logic.countAt("0,0,0"), 2);
+
+  assert.equal(logic.removeBridge(p1, p2), true);
+  assert.equal(logic.bridges.size, 0);
+  assert.equal(logic.countAt("0,0,0"), 0);
+  assert.equal(logic.countAt("2,0,0"), 0);
+
+  // Повторное удаление уже снятого моста ничего не меняет.
+  assert.equal(logic.removeBridge(p1, p2), false);
+});
+
+test("сброс всех мостов оставляет острова и обнуляет кратности", () => {
+  const board = makeBoard(202);
+  const logic = new BridgesLogic3D(board.islands, 2, board.size);
+
+  solveWithLogic(logic, board.solution);
+
+  const edges = logic.bridges.size;
+  const islandsBefore = [...logic.islands.keys()].sort();
+
+  assert.ok(edges > 0, "решение должно содержать мосты");
+  assert.equal(logic.isSolved(), true);
+
+  assert.equal(logic.clearBridges(), edges);
+  assert.equal(logic.bridges.size, 0);
+  assert.equal(logic.isSolved(), false);
+  assert.deepEqual([...logic.islands.keys()].sort(), islandsBefore);
+
+  for (const key of logic.islandKeys) {
+    assert.equal(logic.countAt(key), 0);
+  }
+});
+
 test("расширение растит куб и переносит старую карту в центр", () => {
   const board = makeBoard(101);
   const counts = asCounts(board.solution);
