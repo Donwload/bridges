@@ -773,6 +773,13 @@ class BridgesGameRenderer {
       */
     ctx.restore();
 
+    /*
+      * Цифры островов — в экранном пространстве, поверх мира.
+      * Так они не уменьшаются вместе с масштабом карты и остаются
+      * читаемыми на больших полях во всех скинах.
+      */
+    this.drawIslandNumbers();
+
     this.drawButtonBar();
 
     this.drawWoodenButton(this.btn1Coords, "НОВАЯ КАРТА", this.btn1Hovered);

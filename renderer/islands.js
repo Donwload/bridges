@@ -120,6 +120,144 @@
   },
 
   /**
+   * Цифры островов в экранном пространстве.
+   *
+   * Раньше число запекалось в чанк острова фиксированным размером
+   * 21 px. На больших картах масштаб вписывания ~0.25, и цифра
+   * превращалась в нечитаемые ~5 px. Здесь размер шрифта считается
+   * от реального размера клетки на экране, поэтому число остаётся
+   * крупным при любом размере поля и любом скине.
+   */
+  drawIslandNumbers() {
+      const elements = this.ensureWorldElements();
+
+      if (!elements || !Array.isArray(elements.islands)) return;
+      if (!(this.viewScale > 0)) return;
+
+      const ctx = this.ctx;
+      const scale = this.viewScale;
+      const screenCell = this.cellSize * scale;
+
+      /*
+        * Шрифт и подложка растут вместе с клеткой на экране.
+        * Нижняя граница 10 px не даёт числу исчезнуть на 25×25,
+        * верхняя 28 px не делает его огромным на 7×7.
+        */
+      const fontSize = Math.max(10, Math.min(28, screenCell * 0.42));
+      const edgeWidth = Math.max(1, fontSize * 0.1);
+      const textStroke = Math.max(1.5, fontSize * 0.12);
+
+      /*
+        * Подложка — компактная «таблетка» за цифрой, а не круг
+        * во весь остров: так число остаётся контрастным, но трава,
+        * дерево и декор вокруг не исчезают.
+        */
+      const plateW = fontSize * 0.72 + edgeWidth * 2;
+      const plateH = fontSize * 1.0 + edgeWidth * 2;
+      const plateRadius = Math.min(plateW, plateH) * 0.38;
+
+      ctx.save();
+
+      // Числа не должны вылезать на панель кнопок под полем.
+      ctx.beginPath();
+      ctx.rect(0, 0, this.viewportW, this.viewportH);
+      ctx.clip();
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `700 ${fontSize.toFixed(2)}px "Fredoka", sans-serif`;
+      ctx.lineJoin = "round";
+
+      /*
+        * Цвета цифр задаются скином целиком, а не биомом острова:
+        * биомы меняют только траву/дерево. Палитра берётся один раз,
+        * чтобы не создавать объект на каждый остров в каждом кадре.
+        */
+      const palette = this.skin || {};
+
+      const cullPad = Math.max(plateW, plateH) / 2 + edgeWidth + 4;
+      const useRoundRect = typeof ctx.roundRect === "function";
+
+      const tracePlate = (left, top) => {
+          ctx.beginPath();
+
+          if (useRoundRect) {
+              ctx.roundRect(left, top, plateW, plateH, plateRadius);
+              return;
+          }
+
+          // Ручной fallback для браузеров без CanvasRenderingContext2D.roundRect.
+          const r = Math.min(plateRadius, plateW / 2, plateH / 2);
+          const right = left + plateW;
+          const bottom = top + plateH;
+
+          ctx.moveTo(left + r, top);
+          ctx.lineTo(right - r, top);
+          ctx.arcTo(right, top, right, top + r, r);
+          ctx.lineTo(right, bottom - r);
+          ctx.arcTo(right, bottom, right - r, bottom, r);
+          ctx.lineTo(left + r, bottom);
+          ctx.arcTo(left, bottom, left, bottom - r, r);
+          ctx.lineTo(left, top + r);
+          ctx.arcTo(left, top, left + r, top, r);
+          ctx.closePath();
+      };
+
+      for (let i = 0; i < elements.islands.length; i++) {
+          const island = elements.islands[i];
+
+          const sx = this.viewX + island.cx * scale;
+          const sy = this.viewY + island.cy * scale;
+
+          if (
+              sx + cullPad < 0 ||
+              sx - cullPad > this.viewportW ||
+              sy + cullPad < 0 ||
+              sy - cullPad > this.viewportH
+          ) {
+              continue;
+          }
+
+          const current = this.logic.getIslandBridgesCount([
+              island.r,
+              island.c
+          ]);
+
+          const isOverfilled = current > island.target;
+          const isComplete = current === island.target;
+
+          // Контрастная подложка: число читается и на траве, и на воде.
+          tracePlate(sx - plateW / 2, sy - plateH / 2);
+          ctx.fillStyle = isOverfilled
+              ? palette.numberPlateOver || "rgba(128, 32, 30, 0.84)"
+              : isComplete
+                  ? palette.numberPlateDone || "rgba(18, 78, 58, 0.76)"
+                  : palette.numberPlate || "rgba(24, 46, 32, 0.66)";
+          ctx.fill();
+
+          ctx.lineWidth = edgeWidth;
+          ctx.strokeStyle = isOverfilled
+              ? "rgba(255, 214, 208, 0.62)"
+              : palette.numberPlateEdge || "rgba(255, 253, 247, 0.36)";
+          ctx.stroke();
+
+          // Тёмная обводка + светлая заливка = максимум контраста.
+          const text = String(island.target);
+          const textY = sy + fontSize * 0.02;
+
+          ctx.lineWidth = textStroke;
+          ctx.strokeStyle =
+              palette.numberTextStroke || "rgba(12, 28, 18, 0.6)";
+          ctx.strokeText(text, sx, textY);
+
+          ctx.fillStyle = palette.numberText || "#FFFDF7";
+          ctx.fillText(text, sx, textY);
+      }
+
+      ctx.restore();
+  },
+
+  /**
    * Небольшие декоративные детали вокруг острова (цветочки, камешки, пеньки).
    * Положение детерминировано от координат острова, поэтому картинка
    * стабильна и хранится внутри кэшированного чанка островов.
@@ -635,34 +773,10 @@
       }
 
       /*
-        * 11. Цифра острова
+        * 11. Цифра острова рисуется отдельным экранным слоем
+        * (`drawIslandNumbers`), чтобы её размер не зависел от
+        * масштаба мира и кэша чанков.
         */
-      this.ctx.save();
-
-      this.ctx.textAlign = "center";
-      this.ctx.textBaseline = "middle";
-      this.ctx.font = '700 21px "Fredoka", sans-serif';
-
-      /*
-        * Тень цифры.
-        */
-      this.ctx.fillStyle = "rgba(35,25,20,0.32)";
-      this.ctx.fillText(String(target), cx + 1, cy + 3);
-
-      /*
-        * Основная цифра с мягким свечением у выполненного острова.
-        */
-      if (isComplete) {
-          const glow = 0.45 + 0.3 * Math.sin(this.time * 5);
-          this.ctx.shadowColor = `rgba(${palette.numberGlow}, ${glow})`;
-          this.ctx.shadowBlur = 10;
-      }
-
-      this.ctx.fillStyle = "#FFFDF7";
-      this.ctx.fillText(String(target), cx, cy + 1);
-
-      this.ctx.shadowBlur = 0;
-      this.ctx.restore();
 
       /*
         * 12. Выбранный остров / наведение
