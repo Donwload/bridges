@@ -45,6 +45,7 @@
     let doubleChance;
     let dense = false;
     let defectChance = 0;
+    let reduceHighTargets = false;
 
     if (fixed && modes) {
         // Фиксированный режим: размер и сложность выбирает игрок.
@@ -62,6 +63,7 @@
         doubleChance = chosen.doubleChance;
         dense = chosen.dense === true;
         defectChance = chosen.defectChance ?? 0;
+        reduceHighTargets = chosen.reduceHighTargets === true;
     } else {
         // Для бесконечного режима уровни за пределами кампании
         // генерируются на текущем размере поля.
@@ -80,7 +82,8 @@
         gridSize: profile.gridSize,
         doubleChance,
         dense,
-        defectChance
+        defectChance,
+        reduceHighTargets
     });
 
     if (success) {

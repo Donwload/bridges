@@ -48,7 +48,8 @@ function generateDense(size, minIslands, maxIslands, options = {}) {
     gridSize: size,
     doubleChance: options.doubleChance ?? 0.9,
     dense: true,
-    defectChance: options.defectChance ?? 0.1
+    defectChance: options.defectChance ?? 0.1,
+    reduceHighTargets: options.reduceHighTargets ?? true
   });
 
   return { game, ok };
@@ -210,10 +211,52 @@ test("плотный режим работает и на меньших слож
   }
 });
 
+test("сложная карта не состоит из восьмёрок", () => {
+  const profiles = [
+    [7, 25, 28],
+    [10, 45, 50],
+    [15, 90, 105],
+    [25, 200, 250]
+  ];
+
+  for (const [size, minIslands, maxIslands] of profiles) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { game, ok } = generateDense(
+        size,
+        minIslands,
+        maxIslands,
+        { reduceHighTargets: true }
+      );
+
+      assert.equal(ok, true, `${size}×${size}: карта не создалась`);
+
+      const eights = [...game.islands.values()].filter(
+        (target) => target === 8
+      ).length;
+
+      assert.equal(
+        eights,
+        0,
+        `${size}×${size}: осталось восьмёрок: ${eights}`
+      );
+
+      assert.equal(
+        game.solutionChecker.countSolutionsForIslands(
+          game.islands,
+          2
+        ),
+        1,
+        `${size}×${size}: решение не единственное`
+      );
+    }
+  }
+});
+
 test("средняя карта 25×25 заметно плотнее прежней", () => {
   const { game, ok } = generateDense(25, 70, 90, {
     doubleChance: 0.5,
-    defectChance: 0.5
+    defectChance: 0.5,
+    reduceHighTargets: false
   });
 
   assert.equal(ok, true);

@@ -101,6 +101,9 @@ test("сложность повышает плотность и долю дво�
 
     assert.ok(easy.doubleChance < medium.doubleChance);
     assert.ok(medium.doubleChance < hard.doubleChance);
+
+    assert.equal(medium.reduceHighTargets, false);
+    assert.equal(hard.reduceHighTargets, true);
   }
 });
 
@@ -128,6 +131,7 @@ test("сложная карта заметно плотнее простой", (
   assert.equal(hard25.dense, true);
   assert.ok(hard25.defectChance > 0 && hard25.defectChance < 1);
   assert.equal(hard25.doubleChance, 0.9);
+  assert.equal(hard25.reduceHighTargets, true);
 });
 
 test("средняя карта использует плотную раскладку", () => {
@@ -137,6 +141,7 @@ test("средняя карта использует плотную раскла
 
     assert.equal(medium.dense, true);
     assert.ok(medium.defectChance > 0 && medium.defectChance < 1);
+    assert.equal(medium.reduceHighTargets, false);
 
     // «Средняя» заметно плотнее «простой», а не на пару островов.
     assert.ok(

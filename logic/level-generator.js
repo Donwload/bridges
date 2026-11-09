@@ -50,6 +50,7 @@
       1,
       options.maxAttempts ?? 300
     );
+    const reduceHighTargets = options.reduceHighTargets === true;
     const timeLimit = Math.max(
       100,
       options.timeLimit ?? 3000
@@ -114,17 +115,22 @@
 
       if (!edges) continue;
 
-      const targets = this.pickScatterTargets(
+      const picked = this.pickScatterTargets(
         layout,
         edges,
         weakenChance,
-        startedAt + timeLimit
+        startedAt + timeLimit,
+        reduceHighTargets
       );
 
-      if (!targets) continue;
+      if (!picked) continue;
 
-      // Фактическая доля двойных связей: сумма чисел островов равна
-      // удвоенному числу мостов, а рёбер в решении ровно edges.length.
+      const targets = picked.targets;
+      const counts = picked.counts;
+
+      // Фактическая доля двойных связей: считаем только те рёбра,
+      // которые остались в решении. Ослабленные — одинарные,
+      // удалённые при борьбе с восьмёрками — не входят в знаменатель.
       let targetSum = 0;
 
       for (const value of targets.values()) {
@@ -133,13 +139,19 @@
 
       const bridgeCount = targetSum / 2;
 
+      let usedEdges = 0;
+      let doubleEdges = 0;
+
+      for (const count of counts.values()) {
+        if (count > 0) usedEdges++;
+        if (count === 2) doubleEdges++;
+      }
+
       this.lastDenseStats = {
-        edges: edges.length,
+        edges: usedEdges,
         bridges: bridgeCount,
         doubleShare:
-          edges.length > 0
-            ? (bridgeCount - edges.length) / edges.length
-            : 0
+          usedEdges > 0 ? doubleEdges / usedEdges : 0
       };
 
       this.islands = targets;
@@ -710,12 +722,17 @@
    * «всё двойное». Каждый вариант проверяется солвером; если
    * единственность не доказана, используется полностью двойной
    * вариант, который гарантирует её по построению.
+   *
+   * Для «сложной» дополнительно включается reduceHighTargets:
+   * после получения единственного решения генератор точечно убирает
+   * восьмёрки, сохраняя единственность (см. reduceScatterHighTargets).
    */
   pickScatterTargets(
     layout,
     edges,
     weakenChance,
-    deadline
+    deadline,
+    reduceHighTargets = false
   ) {
     const tryTargets = (weaken) => {
       const targets = new Map(
@@ -724,6 +741,7 @@
           0
         ])
       );
+      const counts = new Map();
 
       for (const edge of edges) {
         let count = 2;
@@ -731,6 +749,8 @@
         if (weaken && Math.random() < weakenChance) {
           count = 1;
         }
+
+        counts.set(edge, count);
 
         const firstTarget =
           targets.get(edge.first) + count;
@@ -759,22 +779,167 @@
           Math.min(deadline, gameNow() + 500)
         );
 
-      return solutionCount === 1 ? targets : null;
+      return solutionCount === 1
+        ? { targets, counts }
+        : null;
     };
+
+    let result = null;
 
     // Несколько попыток с ослабленными мостами.
     for (let attempt = 0; attempt < 3; attempt++) {
-      const weakened = tryTargets(true);
+      result = tryTargets(true);
 
-      if (weakened) return weakened;
+      if (result) break;
 
       if (gameNow() >= deadline) return null;
     }
 
-    if (gameNow() >= deadline) return null;
+    if (!result) {
+      if (gameNow() >= deadline) return null;
 
-    // Гарантированный вариант: все мосты двойные.
-    return tryTargets(false);
+      // Гарантированный вариант: все мосты двойные.
+      result = tryTargets(false);
+    }
+
+    if (!result) return null;
+
+    /*
+     * Точечная борьба с восьмёрками. Полностью двойной граф
+     * гарантирует единственность, но даёт много островов с числом 8:
+     * игрок просто соединяет все видимые стороны двойными мостами.
+     * Убираем часть таких рёбер, пока солвер подтверждает
+     * единственность. Число 6 (четыре видимых соседа, один исключён)
+     * требует настоящего выбора, поэтому карта становится сложнее.
+     */
+    if (reduceHighTargets) {
+      const maxChecks = Math.max(
+        8,
+        Math.ceil(edges.length * 0.2)
+      );
+
+      this.reduceScatterHighTargets(
+        result.targets,
+        edges,
+        result.counts,
+        maxChecks,
+        deadline
+      );
+    }
+
+    return result;
+  },
+
+  /*
+   * Убирает восьмёрки из готового решения. Для каждого острова
+   * с числом 8 пробует удалить (2 -> 0) или ослабить (2 -> 1) одно
+   * из его рёбер. Изменение принимается, только если солвер
+   * по-прежнему находит ровно одно решение. Бюджет проверок
+   * ограничен, поэтому на больших картах генерация остаётся быстрой.
+   */
+  reduceScatterHighTargets(
+    targets,
+    edges,
+    counts,
+    maxChecks,
+    deadline
+  ) {
+    const incidentByKey = new Map();
+
+    for (const edge of edges) {
+      if (!incidentByKey.has(edge.first)) {
+        incidentByKey.set(edge.first, []);
+      }
+
+      if (!incidentByKey.has(edge.second)) {
+        incidentByKey.set(edge.second, []);
+      }
+
+      incidentByKey.get(edge.first).push(edge);
+      incidentByKey.get(edge.second).push(edge);
+    }
+
+    const shuffle = (items) => {
+      for (let i = items.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [items[i], items[j]] = [items[j], items[i]];
+      }
+
+      return items;
+    };
+
+    const candidates = shuffle(
+      [...targets.entries()]
+        .filter(
+          ([, value]) => value === MAX_ISLAND_TARGET
+        )
+        .map(([key]) => key)
+    );
+
+    let checks = 0;
+
+    for (const key of candidates) {
+      if (checks >= maxChecks) return;
+      if (targets.get(key) !== MAX_ISLAND_TARGET) continue;
+      if (gameNow() >= deadline) return;
+
+      const incident = shuffle([
+        ...(incidentByKey.get(key) || [])
+      ]);
+
+      let reduced = false;
+
+      for (const edge of incident) {
+        if (reduced) break;
+
+        const current = counts.get(edge);
+
+        if (!current) continue;
+
+        const other =
+          edge.first === key ? edge.second : edge.first;
+
+        // Сначала пробуем убрать ребро целиком: 8 -> 6.
+        // Если не выходит — ослабить до одного моста: 8 -> 7.
+        const options = current === 2 ? [0, 1] : [0];
+
+        for (const next of options) {
+          if (checks >= maxChecks) return;
+          if (gameNow() >= deadline) return;
+
+          const delta = current - next;
+          const oldKeyTarget = targets.get(key);
+          const oldOtherTarget = targets.get(other);
+          const newKeyTarget = oldKeyTarget - delta;
+          const newOtherTarget = oldOtherTarget - delta;
+
+          if (newKeyTarget <= 0 || newOtherTarget <= 0) {
+            continue;
+          }
+
+          targets.set(key, newKeyTarget);
+          targets.set(other, newOtherTarget);
+          counts.set(edge, next);
+          checks++;
+
+          const solutionCount =
+            this.solutionChecker.countSolutionsForIslands(
+              targets,
+              2,
+              Math.min(deadline, gameNow() + 300)
+            );
+
+          if (solutionCount === 1) {
+            reduced = true;
+            break;
+          }
+
+          targets.set(key, oldKeyTarget);
+          targets.set(other, oldOtherTarget);
+          counts.set(edge, current);
+        }
+      }
+    }
   },
 
   generateValidLevel(options = {}) {

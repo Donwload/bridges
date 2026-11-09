@@ -53,10 +53,12 @@
    * а из кандидатов выбираются самые свободные участки. «Средняя» ставит
    * в 1,5–3 раза меньше островов, чем «сложная», но так же занимает все
    * ряды и столбцы и не складывается в линии. На 25×25 «средняя» — это
-   * 70–90 островов и ~120–230 мостов, «сложная» — 200–250 островов и
-   * ~500–670 мостов. Плотная схема включается флагом dense;
+   * 70–90 островов и ~120–240 мостов, «сложная» — 200–250 островов и
+   * ~460–610 мостов. Плотная схема включается флагом dense;
    * defectChance — доля связей, которые случайно ослабляются, чтобы
-   * карта не была полностью «всё двойное».
+   * карта не была полностью «всё двойное». Для «сложной» дополнительно
+   * включается reduceHighTargets: генератор точечно убирает восьмёрки,
+   * проверяя солвером, что единственность решения сохраняется.
    */
   const PROFILES = {
     7: {
@@ -73,7 +75,8 @@
         maxIslands: 28,
         doubleChance: 0.9,
         dense: true,
-        defectChance: 0.1
+        defectChance: 0.1,
+        reduceHighTargets: true
       }
     },
     10: {
@@ -90,7 +93,8 @@
         maxIslands: 50,
         doubleChance: 0.9,
         dense: true,
-        defectChance: 0.1
+        defectChance: 0.1,
+        reduceHighTargets: true
       }
     },
     15: {
@@ -107,7 +111,8 @@
         maxIslands: 105,
         doubleChance: 0.9,
         dense: true,
-        defectChance: 0.1
+        defectChance: 0.1,
+        reduceHighTargets: true
       }
     },
     25: {
@@ -124,7 +129,8 @@
         maxIslands: 250,
         doubleChance: 0.9,
         dense: true,
-        defectChance: 0.1
+        defectChance: 0.1,
+        reduceHighTargets: true
       }
     }
   };
@@ -175,7 +181,8 @@
       maxIslands: profile.maxIslands,
       doubleChance: profile.doubleChance,
       dense: profile.dense === true,
-      defectChance: profile.defectChance ?? 0
+      defectChance: profile.defectChance ?? 0,
+      reduceHighTargets: profile.reduceHighTargets === true
     };
   }
 
